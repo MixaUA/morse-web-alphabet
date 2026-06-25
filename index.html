@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<title>Морзе — Телеграф</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Special+Elite&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:'Special Elite',serif;
+  background:#f5f0e8;
+  color:#1a1a1a;
+  min-height:100vh;
+  padding:1.5rem;
+  background-image:
+    radial-gradient(circle at 20px 20px,rgba(0,0,0,0.04) 1px,transparent 1px),
+    radial-gradient(circle at 60px 60px,rgba(0,0,0,0.03) 1px,transparent 1px);
+  background-size:80px 80px;
+}
+.container{max-width:820px;margin:0 auto;width:100%}
+
+/* Заголовок */
+.header{text-align:center;margin-bottom:1.2rem}
+.header h1{
+  font-family:'Caveat',cursive;
+  font-size:36px;font-weight:700;letter-spacing:2px;
+  display:inline-block;
+}
+.header h1::after{
+  content:'';display:block;height:3px;background:#1a1a1a;
+  margin-top:4px;border-radius:2px;transform:rotate(-0.5deg);
+}
+.sub{font-family:'Caveat',cursive;font-size:16px;color:#555;margin-top:6px;letter-spacing:1px;}
+
+/* Ефір-рядок під заголовком */
+.ether-bar{
+  display:flex;align-items:center;gap:10px;
+  justify-content:center;
+  margin-bottom:1.4rem;
+  font-family:'Caveat',cursive;font-size:15px;color:#555;
+}
+.dot-ind{width:9px;height:9px;border-radius:50%;background:#888;border:1.5px solid #555;flex-shrink:0}
+.dot-ind.active{background:#1a1a1a;animation:blink .7s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#statusTxt{letter-spacing:.5px}
+
+/* Карточки */
+.card{
+  background:#fffef9;
+  border:2px solid #1a1a1a;
+  border-radius:4px;
+  padding:1.5rem 1.25rem;
+  margin-bottom:1.2rem;
+  box-shadow:4px 4px 0 #1a1a1a;
+}
+
+/* Лейбли */
+.lbl{font-family:'Caveat',cursive;font-size:17px;color:#333;letter-spacing:1px;display:block;margin-bottom:6px;}
+
+/* Розділювач */
+.divider{display:flex;align-items:center;gap:5px;margin:4px 0 10px;opacity:.2;}
+.divider .d{width:14px;height:2px;background:#1a1a1a;border-radius:1px}
+.divider .dd{width:5px;height:5px;border-radius:50%;background:#1a1a1a}
+
+/* ===== СТРІЧКА МОРЗЕ (верхня) ===== */
+/* direction:rtl — нові символи з'являються справа, старі йдуть ліворуч.
+   Весь LTR-текст загортаємо в .morse-txt щоб не перевертати крапки/тире */
+.tape-outer{
+  width:100%;
+  height:54px;
+  border:2px solid #1a1a1a;
+  border-radius:3px;
+  background:#fff9ee;
+  overflow:hidden;
+  position:relative;
+  margin-bottom:16px;
+  /* перфорація */
+  background-image:
+    radial-gradient(circle at 8px 12px,#f5f0e8 4px,transparent 4px),
+    radial-gradient(circle at 8px 38px,#f5f0e8 4px,transparent 4px),
+    radial-gradient(circle at calc(100% - 8px) 12px,#f5f0e8 4px,transparent 4px),
+    radial-gradient(circle at calc(100% - 8px) 38px,#f5f0e8 4px,transparent 4px);
+}
+/* лівий fade — тут символи "зникають" */
+.tape-outer::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:36px;
+  background:linear-gradient(to right,#fff9ee 60%,transparent);
+  z-index:5;pointer-events:none;
+}
+/* правий fade */
+.tape-outer::after{
+  content:'';position:absolute;right:0;top:0;bottom:0;width:20px;
+  background:linear-gradient(to left,#fff9ee 60%,transparent);
+  z-index:5;pointer-events:none;
+}
+
+/* Сам рядок — direction rtl, щоб «хвіст» завжди праворуч */
+.morse-tape{
+  width:100%;height:100%;
+  display:flex;align-items:center;
+  padding:0 24px;
+  overflow:hidden;          /* НЕ auto — не треба скролбар */
+  direction:rtl;
+  white-space:nowrap;
+  font-family:'Special Elite',serif;
+  font-size:24px;
+  letter-spacing:4px;
+  color:#1a1a1a;
+}
+/* Внутрішній span — повертаємо LTR, щоб крапки/тире не перевертались */
+.morse-txt{direction:ltr;display:inline-block;}
+
+/* Мінімальний placeholder коли порожньо */
+.morse-tape.empty{color:#aaa;font-size:18px;justify-content:center;}
+
+/* ===== VIS (крапки-тире кольором) ===== */
+.vis-wrap{display:flex;gap:3px;align-items:center;height:24px;overflow-x:auto;overflow-y:hidden;margin-bottom:16px;flex-wrap:nowrap;scrollbar-width:none;}
+.vis-wrap::-webkit-scrollbar{display:none;}
+.sym{display:inline-block;background:#1a1a1a;border-radius:2px;height:16px;flex-shrink:0}
+.sym.dot-s{width:7px}
+.sym.dash-s{width:21px}
+.sym.sp{background:transparent;width:10px}
+.sym.lit{background:#888}
+
+/* ===== ТЕКСТОВЕ ПОЛЕ (широке) ===== */
+.inp-wide{
+  width:100%;
+  padding:9px 13px;
+  border:2px solid #1a1a1a;
+  border-radius:3px;
+  font-family:'Special Elite',serif;
+  font-size:15px;
+  background:#fffef9;
+  color:#1a1a1a;
+  outline:none;
+  box-shadow:2px 2px 0 #1a1a1a;
+  margin-bottom:16px;
+  /* Текст біжить вправо, курсор слідкує */
+  direction:ltr;
+  text-align:left;
+}
+.inp-wide:focus{box-shadow:3px 3px 0 #1a1a1a}
+
+/* ===== КНОПКИ ===== */
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0}
+button{
+  padding:8px 18px;
+  border:2px solid #1a1a1a;
+  border-radius:3px;
+  background:#fffef9;
+  color:#1a1a1a;
+  font-family:'Caveat',cursive;
+  font-size:17px;
+  cursor:pointer;
+  box-shadow:2px 2px 0 #1a1a1a;
+  transition:box-shadow .1s,transform .1s;
+  white-space:nowrap;
+  line-height:1.2;
+}
+button:hover{background:#f0ece0}
+button:active{transform:translate(2px,2px);box-shadow:0 0 0 #1a1a1a}
+button.accent{background:#1a1a1a;color:#fffef9}
+button.accent:hover{background:#333}
+
+.heard{font-family:'Caveat',cursive;font-size:15px;color:#555;margin-top:8px;min-height:20px;letter-spacing:1px;}
+
+/* ===== ТАБЛИЦЯ ===== */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:5px;margin-top:8px}
+.cell{
+  background:#fffef9;border:2px solid #1a1a1a;border-radius:3px;
+  padding:5px 8px;display:flex;justify-content:space-between;align-items:center;
+  cursor:pointer;
+  box-shadow:2px 2px 0 #1a1a1a;
+  transition:transform .1s,box-shadow .1s;
+}
+.cell:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 #1a1a1a}
+.cell:active{transform:translate(2px,2px);box-shadow:0 0 0 #1a1a1a}
+.cell .ch{font-family:'Caveat',cursive;font-size:20px;font-weight:700}
+.cell .mc{font-family:'Special Elite',serif;font-size:11px;color:#555;letter-spacing:2px}
+.cell.hi{background:#1a1a1a;color:#fffef9}
+.cell.hi .mc{color:#ccc}
+
+/* ===== ТРАНСЛІТЕРАТОР ===== */
+.card-title{font-family:'Caveat',cursive;font-size:19px;font-weight:700;margin-bottom:4px;letter-spacing:1px;}
+
+.translit-out{
+  width:100%;
+  padding:9px 13px;
+  border:2px solid #1a1a1a;
+  border-radius:3px;
+  font-family:'Special Elite',serif;
+  font-size:15px;
+  background:#fffef9;
+  color:#1a1a1a;
+  letter-spacing:2px;
+  box-shadow:2px 2px 0 #1a1a1a;
+  min-height:38px;
+  margin-bottom:8px;
+}
+
+/* ===== ТЕРМІНАЛ ===== */
+#debugLog{
+  font-family:'Special Elite',serif;font-size:12px;
+  background:#1a1a1a;color:#c8c0a8;
+  border-radius:3px;padding:12px;
+  min-height:120px;max-height:240px;
+  overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+  box-shadow:3px 3px 0 #888;
+}
+
+/* ===== ДЕКОР ===== */
+.morse-deco{
+  display:flex;align-items:center;gap:6px;
+  margin-bottom:1.2rem;justify-content:center;
+  opacity:.3;
+}
+.deco-dot{width:6px;height:6px;border-radius:50%;background:#1a1a1a;flex-shrink:0}
+.deco-dash{width:18px;height:4px;background:#1a1a1a;border-radius:2px;flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>&#8212;&#8212;&#8212; МОРЗЕ &#8212;&#8212;&#8212;</h1>
+    <div class="sub">Телеграфний декодер &amp; кодувальник</div>
+  </div>
+
+  <!-- Ефір під заголовком -->
+  <div class="ether-bar">
+    <span class="dot-ind" id="dotEl"></span>
+    <span id="statusTxt">Мікрофон вимкнено</span>
+  </div>
+
+  <!-- Декор -->
+  <div class="morse-deco">
+    <span class="deco-dot"></span><span class="deco-dash"></span><span class="deco-dot"></span>
+    <span class="deco-dash"></span><span class="deco-dash"></span><span class="deco-dash"></span>
+    <span class="deco-dot"></span><span class="deco-dash"></span><span class="deco-dot"></span>
+    <span class="deco-dash"></span><span class="deco-dot"></span><span class="deco-dash"></span>
+  </div>
+
+  <!-- ГОЛОВНА КАРТОЧКА -->
+  <div class="card">
+    <span class="lbl">Код Морзе:</span>
+
+    <!-- Стрічка: direction rtl, нові символи справа, старі ховаються зліва -->
+    <div class="tape-outer">
+      <div class="morse-tape empty" id="morseOut"><span class="morse-txt">— порожньо —</span></div>
+    </div>
+
+    <!-- Крапки/тире поточного слова -->
+    <div class="vis-wrap" id="vis"></div>
+
+    <!-- Широке текстове поле -->
+    <input class="inp-wide" type="text" id="inp"
+      placeholder="Введіть текст латиницею..."
+      oninput="onInput()"
+      autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <!-- Кнопки в ряд -->
+    <div class="btn-row">
+      <button id="micBtn" onclick="toggleMic()">&#9679; Слухати</button>
+      <button class="accent" onclick="playMorse()">&#9654; Відтворити</button>
+      <button id="stopBtn" onclick="stopPlay()" style="display:none">&#9632; Стоп</button>
+      <button onclick="clearAll()">&#10005; Очистити</button>
+    </div>
+
+    <p class="heard" id="heard"></p>
+  </div>
+
+  <!-- ТАБЛИЦЯ -->
+  <div class="card">
+    <div class="card-title">Таблиця знаків</div>
+    <div class="divider"><span class="d"></span><span class="dd"></span><span class="d"></span><span class="dd"></span><span class="d"></span></div>
+    <div class="grid" id="tbl"></div>
+  </div>
+
+  <!-- ТРАНСЛІТЕРАТОР -->
+  <div class="card">
+    <div class="card-title">Транслітератор кирилиці</div>
+    <div class="divider"><span class="d"></span><span class="dd"></span><span class="d"></span><span class="dd"></span><span class="d"></span></div>
+    <input class="inp-wide" type="text" id="translit-in"
+      placeholder="Введіть кирилицю..."
+      oninput="doTranslit()"
+      autocomplete="off" spellcheck="false">
+    <div class="translit-out" id="translit-out"></div>
+    <div class="btn-row">
+      <button id="translitCopyBtn" onclick="copyTranslit()">&#128203; Копіювати результат</button>
+      <button onclick="document.getElementById('translit-in').value='';doTranslit()">&#10005; Очистити</button>
+    </div>
+  </div>
+
+  <!-- ТЕРМІНАЛ -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="card-title">Термінал</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="clearLog()" style="font-size:14px;padding:4px 10px">&#10005;</button>
+        <button onclick="copyLog()" id="copyBtn" style="font-size:14px;padding:4px 10px">&#128203; Лог</button>
+      </div>
+    </div>
+    <div id="debugLog"></div>
+  </div>
+
+</div>
+
+<script>
+const LATIN={
+  'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',
+  'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',
+  'Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-',
+  'Y':'-.--','Z':'--..',
+  '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....',
+  '6':'-....','7':'--...','8':'---..','9':'----.'
+};
+const MORSE_TO_LATIN=Object.fromEntries(Object.entries(LATIN).map(([k,v])=>[v,k]));
+
+/* =========================================================
+   СТРІЧКА — direction:rtl на .morse-tape
+   Всі символи загортаються в <span class="morse-txt">
+   який має direction:ltr — так крапки/тире не перевертаються,
+   але новий текст все одно «з'являється» з правого краю.
+   ========================================================= */
+function encode(text){
+  let t=(text!==undefined?text:document.getElementById('inp').value).toUpperCase();
+  
+  // Якщо текст задовгий, залишаємо лише останні 200 символів
+  if (t.length > 200) {
+    t = t.slice(-200);
+    document.getElementById('inp').value = t.toLowerCase();
+    if (isDecoding) { lastDecodedText = t.toLowerCase(); }
+  }
+
+  const words=t.split(/\s+/);
+  const coded=words.map(w=>[...w].map(c=>LATIN[c]||'').filter(Boolean).join(' ')).join(' / ');
+
+  const el=document.getElementById('morseOut');
+  if(!coded){
+    el.className='morse-tape empty';
+    el.innerHTML='<span class="morse-txt">— порожньо —</span>';
+  }else{
+    el.className='morse-tape';
+    el.innerHTML='<span class="morse-txt">'+coded+'</span>';
+  }
+
+  renderVis(coded);
+  if(!isDecoding) highlightTable(t);
+  return coded;
+}
+
+let hlTimer=null;
+function clearHi(){document.querySelectorAll('.cell.hi').forEach(c=>c.classList.remove('hi'));}
+
+/* При ручному введенні — підсвічуємо літери слова, гасимо через 300мс */
+function highlightTable(t){
+  clearTimeout(hlTimer);
+  clearHi();
+  [...t].forEach(ch=>{
+    const c=document.querySelector(`.cell[data-ch="${ch}"]`);
+    if(c)c.classList.add('hi');
+  });
+  hlTimer=setTimeout(clearHi,300);
+}
+
+/* При кліку на таблицю — блиск одного символу 200мс */
+function flashHighlight(ch){
+  clearTimeout(hlTimer);
+  clearHi();
+  const target=document.querySelector(`.cell[data-ch="${ch}"]`);
+  if(target){
+    target.classList.add('hi');
+    hlTimer=setTimeout(()=>target.classList.remove('hi'),200);
+  }
+}
+
+function onInput(){
+  encode();
+}
+
+function clearAll(){
+  document.getElementById('inp').value='';
+  if(isDecoding){currentMorseChar='';lastDecodedText='';}
+  encode('');
+}
+
+/* ===== VIS ===== */
+function renderVis(coded){
+  const vis=document.getElementById('vis');
+  vis.innerHTML='';
+  if(!coded)return;
+  for(const ch of coded){
+    const s=document.createElement('span');
+    if(ch==='.'){s.className='sym dot-s';}
+    else if(ch==='-'){s.className='sym dash-s';}
+    else if(ch===' '){s.className='sym sp';}
+    else if(ch==='/'){const g=document.createElement('span');g.className='sym sp';g.style.width='22px';vis.appendChild(g);continue;}
+    vis.appendChild(s);
+  }
+  
+  // ОПТИМІЗАЦІЯ: видаляємо старі геометричні блоки зліва, якщо їх забагато
+  while(vis.children.length > 100) {
+    vis.removeChild(vis.firstChild);
+  }
+
+  requestAnimationFrame(()=>{vis.scrollLeft=vis.scrollWidth;});
+}
+
+/* ===== PLAY ===== */
+let audioCtx=null,playing=false,stopFlag=false;
+async function playMorse(){
+  if(playing){stopPlay();return;}
+  const coded=document.getElementById('inp').value?encode():'';
+  if(!coded)return;
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const symbols=coded.replace(/\//g,' ');
+  const unit=100;
+  document.getElementById('stopBtn').style.display='';
+  playing=true;stopFlag=false;
+  const vis=document.getElementById('vis');
+  const spans=[...vis.querySelectorAll('.sym')];
+  let idx=0;
+  for(const ch of symbols){
+    if(stopFlag)break;
+    if(ch==='.'||ch==='-'){
+      const osc=audioCtx.createOscillator();
+      const g=audioCtx.createGain();
+      osc.connect(g);g.connect(audioCtx.destination);
+      osc.frequency.value=700;osc.type='sine';
+      const t=audioCtx.currentTime;
+      const len=(ch==='.'?1:3)*unit/1000;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.3,t+0.005);
+      g.gain.setValueAtTime(0.3,t+len-0.005);
+      g.gain.linearRampToValueAtTime(0,t+len);
+      osc.start(t);osc.stop(t+len);
+      if(spans[idx]){spans[idx].classList.add('lit');}
+      await sleep(len*1000+unit);
+      if(spans[idx]){spans[idx].classList.remove('lit');}
+      idx++;
+    }else if(ch===' '){
+      await sleep(unit*2);idx++;
+    }
+  }
+  playing=false;stopFlag=false;
+  document.getElementById('stopBtn').style.display='none';
+}
+function stopPlay(){stopFlag=true;playing=false;document.getElementById('stopBtn').style.display='none';}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+/* ===== ТАБЛИЦЯ (клік додає літеру, підсвічує і гасне) ===== */
+const tbl=document.getElementById('tbl');
+for(const[ch,mc]of Object.entries(LATIN)){
+  const d=document.createElement('div');
+  d.className='cell';d.dataset.ch=ch;
+  d.innerHTML=`<span class="ch">${ch}</span><span class="mc">${mc}</span>`;
+  d.onclick=()=>{
+    const i=document.getElementById('inp');
+    i.value+=ch.toLowerCase();
+    encode();
+    flashHighlight(ch);
+  };
+  tbl.appendChild(d);
+}
+
+/* ===== ТРАНСЛІТЕРАТОР ===== */
+const TRANSLIT={'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Е':'E','Є':'YE','Ж':'ZH','З':'Z','И':'Y','І':'I','Ї':'YI','Й':'J','К':'K','Л':'L','М':'M','Н':'N','О':'O','П':'P','Р':'R','С':'S','Т':'T','У':'U','Ф':'F','Х':'KH','Ц':'TS','Ч':'CH','Ш':'SH','Щ':'SCH','Ь':'','Ю':'YU','Я':'YA'};
+function doTranslit(){
+  const raw=document.getElementById('translit-in').value.toUpperCase();
+  let r='';
+  for(const ch of raw){
+    if(TRANSLIT[ch]!==undefined)r+=TRANSLIT[ch];
+    else if(ch===' ')r+=' ';
+    else r+=ch;
+  }
+  document.getElementById('translit-out').textContent=r;
+}
+function copyTranslit(){
+  const t=document.getElementById('translit-out').textContent;
+  if(!t)return;
+  navigator.clipboard.writeText(t).then(()=>{
+    const b=document.getElementById('translitCopyBtn');
+    b.textContent='\u2713 Скопійовано';
+    setTimeout(()=>{b.textContent='\u{1F4CB} Копіювати результат';},1500);
+  });
+}
+
+/* ===== ТЕРМІНАЛ ===== */
+let logLines=[];
+function dbg(msg){
+  const ts=performance.now().toFixed(0);
+  logLines.push(`[${ts}ms] ${msg}`);
+  if(logLines.length>200)logLines.shift();
+  const el=document.getElementById('debugLog');
+  el.textContent=logLines.join('\n');
+  /* scroll тільки всередині div, не торкаємось window */
+  requestAnimationFrame(()=>{ el.scrollTop=el.scrollHeight; });
+}
+function clearLog(){logLines=[];document.getElementById('debugLog').textContent='';}
+function copyLog(){
+  navigator.clipboard.writeText(logLines.join('\n')).then(()=>{
+    const b=document.getElementById('copyBtn');
+    b.textContent='\u2713 Скопійовано';
+    setTimeout(()=>{b.textContent='\u{1F4CB} Лог';},1500);
+  });
+}
+
+/* ===== DSP-ДЕКОДЕР (оригінал, без змін) ===== */
+let micStream=null,analyserNode=null,rafId=null,isDecoding=false;
+const audioUnit=100;
+const TARGET_FREQ=2754;
+const FFT_SIZE=2048;
+let signalActive=false,stateTime=performance.now(),currentMorseChar="",lastDecodedText="";
+let noiseFloor=-105,calibFrames=0,isCalibrated=false;
+
+function decoderLoop(){
+  if(!isDecoding)return;
+  rafId=requestAnimationFrame(decoderLoop);
+  const data=new Float32Array(analyserNode.frequencyBinCount);
+  analyserNode.getFloatFrequencyData(data);
+  const sr=audioCtx.sampleRate;
+  const targetBin=Math.round(TARGET_FREQ*FFT_SIZE/sr);
+  let sigDb=data[targetBin];
+  if(!isFinite(sigDb))sigDb=-120;
+  let noiseSum=0,noiseCnt=0;
+  for(let b=10;b<targetBin-20;b++){const val=data[b];if(isFinite(val)){noiseSum+=val;noiseCnt++;}}
+  const currentNoise=noiseCnt>0?(noiseSum/noiseCnt):-120;
+  if(!isCalibrated){
+    if(currentNoise<=-150)return;
+    noiseFloor=calibFrames===0?currentNoise:noiseFloor*0.8+currentNoise*0.2;
+    calibFrames++;
+    document.getElementById('statusTxt').textContent=`Калібрація... ${Math.round(calibFrames/30*100)}%`;
+    if(calibFrames>=30){
+      isCalibrated=true;
+      dbg(`✅ Базовий шум: ${Math.round(noiseFloor)} дБ. Готовий.`);
+    }
+    return;
+  }
+  const threshold=noiseFloor+25;
+  const isTone=sigDb>threshold;
+  if(!decoderLoop._tick)decoderLoop._tick=0;
+  if(++decoderLoop._tick%45===0){dbg(`sig=${Math.round(sigDb)} дБ | поріг=${Math.round(threshold)} дБ | ${isTone?'ТОН':'тиша'}`);}
+  document.getElementById('statusTxt').textContent=`Ефір: ${Math.round(sigDb)} дБ | Поріг: ${Math.round(threshold)} дБ`;
+  const now=performance.now();
+  const delta=now-stateTime;
+  if(isTone!==signalActive){
+    if(signalActive){
+      if(delta>=audioUnit*0.4&&delta<audioUnit*1.8){currentMorseChar+=".";dbg(`  . (${Math.round(delta)}ms) -> "${currentMorseChar}"`);}
+      else if(delta>=audioUnit*1.8&&delta<audioUnit*5.0){currentMorseChar+="-";dbg(`  - (${Math.round(delta)}ms) -> "${currentMorseChar}"`);}
+      else{dbg(`  ігнор (${Math.round(delta)}ms)`);}
+      document.getElementById('heard').textContent="Знак: "+currentMorseChar;
+    }else{dbg(`▶ Звук (тиша ${Math.round(delta)}ms)`);}
+    signalActive=isTone;stateTime=now;
+  }else{
+    if(!signalActive&&currentMorseChar.length>0&&delta>=audioUnit*2.2){
+      const letter=MORSE_TO_LATIN[currentMorseChar]||"?";
+      dbg(`◀ "${currentMorseChar}" -> "${letter}"`);
+      if(letter!=="?"){
+        lastDecodedText+=letter.toLowerCase();
+        document.getElementById('inp').value=lastDecodedText;
+        /* Скролимо поле вправо щоб останній символ був видний */
+        const inp=document.getElementById('inp');
+        inp.scrollLeft=inp.scrollWidth;
+        encode();
+      }
+      currentMorseChar="";document.getElementById('heard').textContent="";
+    }
+    if(!signalActive&&delta>=audioUnit*5.5){
+      if(lastDecodedText.length>0&&!lastDecodedText.endsWith(" ")){
+        dbg(`[ПРОБІЛ]`);
+        lastDecodedText+=" ";
+        document.getElementById('inp').value=lastDecodedText;
+        const inp=document.getElementById('inp');
+        inp.scrollLeft=inp.scrollWidth;
+        encode();
+      }
+    }
+    /* 3-секундна пауза між реченнями: додаємо ' / ' */
+    if(!signalActive&&delta>=audioUnit*30){
+      const t=document.getElementById('inp').value;
+      if(t.length>0&&!t.endsWith(' / ')&&!t.endsWith('/ ')){
+        dbg(`[РЕЧЕННЯ / ]`);
+        lastDecodedText=t.trimEnd()+' / ';
+        document.getElementById('inp').value=lastDecodedText;
+        document.getElementById('inp').scrollLeft=document.getElementById('inp').scrollWidth;
+        encode();
+        stateTime=now;
+      }
+    }
+  }
+}
+
+async function toggleMic(){
+  if(isDecoding){stopMic();return;}
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')await audioCtx.resume();
+    micStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    const source=audioCtx.createMediaStreamSource(micStream);
+    analyserNode=audioCtx.createAnalyser();
+    analyserNode.fftSize=FFT_SIZE;
+    analyserNode.smoothingTimeConstant=0.1;
+    source.connect(analyserNode);
+    isDecoding=true;signalActive=false;stateTime=performance.now();
+    currentMorseChar="";lastDecodedText=document.getElementById('inp').value;
+    calibFrames=0;isCalibrated=false;
+    document.getElementById('dotEl').className='dot-ind active';
+    /* innerHTML щоб уникнути артефактів з entities */
+    document.getElementById('micBtn').innerHTML='&#9632; Зупинити';
+    dbg(`🎤 Мікрофон ${audioCtx.sampleRate}Гц. Фільтр ${TARGET_FREQ}Гц.`);
+    decoderLoop();
+  }catch(err){
+    dbg(`❌ ${err.message}`);
+    alert('Помилка мікрофона: '+err.message);
+    stopMic();
+  }
+}
+
+function stopMic(){
+  isDecoding=false;
+  if(rafId)cancelAnimationFrame(rafId);
+  if(micStream)micStream.getTracks().forEach(t=>t.stop());
+  if(analyserNode)analyserNode.disconnect();
+  micStream=null;analyserNode=null;rafId=null;
+  document.getElementById('dotEl').className='dot-ind';
+  document.getElementById('statusTxt').textContent='Мікрофон вимкнено';
+  document.getElementById('micBtn').innerHTML='&#9679; Слухати';
+  document.getElementById('heard').textContent='';
+}
+
+encode('');
+</script>
+</body>
+</html>
