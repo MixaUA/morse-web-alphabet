@@ -84,8 +84,9 @@ let listening=false, transmitting=false;
 let noiseFloor=-120, calibFrames=0, isCalibrated=false;
 let lastSignalTime=null;
 
-// Накопичувальний буфер активності
+// Накопичувальний буфер активності та блокування табло
 let signalEnergy = 0; 
+let displayLockUntil = 0; 
 const TRIGGER_THRESHOLD = 1.0; 
 
 const FFT_SIZE=4096, CALIB_FRAMES=40;
@@ -136,12 +137,10 @@ async function runTxCycle(){
     }
     if(!transmitting) break;
     
-    resetOutput();
-    
     const intervalSec = parseInt(document.getElementById('interval').value);
     for(let i = intervalSec; i > 0; i--) {
       if(!transmitting) break;
-      setTxStatus(`Пауза. Наступний сигнал через ${i}с...`);
+      setTxStatus(`Пауза. Наступний signal через ${i}с...`);
       await sleep(1000);
     }
   }
@@ -194,9 +193,9 @@ async function startMic(){
     const ctx=getCtx();
     analyser=ctx.createAnalyser();
     analyser.fftSize=FFT_SIZE;
-    analyser.smoothingTimeConstant=0.5; 
+    analyser.smoothingTimeConstant=0; // Жорстка моментальна реакція без цифрової інерції
     ctx.createMediaStreamSource(micStream).connect(analyser);
-    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; lastSignalTime=null; signalEnergy=0;
+    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; lastSignalTime=null; signalEnergy=0; displayLockUntil=0;
     detectLoop();
   }catch(e){ setRxStatus('мікрофон недоступний: '+e.message); }
 }
@@ -207,6 +206,7 @@ function stopMic(){
   if(micStream) micStream.getTracks().forEach(t=>t.stop());
   analyser=null; micStream=null;
   setRxStatus('Моніторинг вимкнено.');
+  displayLockUntil = 0; // Скидаємо блок при примусовому вимкненні
   resetOutput();
 }
 
@@ -230,7 +230,7 @@ function detectLoop(){
     return;
   }
 
-  // Оцінка фонового шуму мовного діапазону (ПОВЕРНУТО до оригінальних значень)
+  // Оцінка фонового шуму мовного діапазону
   const fVoiceMax = 1500;
   const maxVoiceBin = Math.ceil(fVoiceMax / binSize);
   let voiceSum = 0, voiceCnt = 0;
@@ -245,34 +245,38 @@ function detectLoop(){
   let zoneMax=-Infinity;
   for(let i=minBin;i<=maxBin&&i<buf.length;i++){ if(buf[i]>zoneMax) zoneMax=buf[i]; }
 
-  // ОРИГІНАЛЬНІ ПОРОГИ ЧУТЛИВОСТІ (Чудово відсікають голос)
   const absoluteThreshold = noiseFloor + 32; 
   const isPureTone = zoneMax > (avgVoiceLevel + 18); 
 
   const isSignalPresent = (zoneMax > absoluteThreshold) && isPureTone;
+  const now = performance.now();
 
   if(isSignalPresent){
-    lastSignalTime = performance.now();
-    // Накопичуємо енергію, поки звучить тон
+    lastSignalTime = now;
     signalEnergy += 0.07; 
     if(signalEnergy > TRIGGER_THRESHOLD) {
       onTrigger();
       signalEnergy = 0; 
     }
   } else {
-    // Енергія плавно стікає в паузах Морзе, замість миттєвого скидання
     signalEnergy -= 0.015; 
     if(signalEnergy < 0) signalEnergy = 0;
+    
+    // Швидке обнулення недобраної енергії в паузі понад 1.5 сек
+    if(lastSignalTime && (now - lastSignalTime) > 1500 && signalEnergy > 0) {
+      signalEnergy = 0;
+    }
   }
 
-  // Рядок статусу з відсотками прогресу розпізнання
+  // Рядок статусу
   if (signalEnergy > 0) {
     setRxStatus(`📡 Прийом Морзе... Накопичення: ${Math.round((signalEnergy/TRIGGER_THRESHOLD)*100)}%`);
   } else {
     setRxStatus(`ефір чистий | зона: ${zoneMax.toFixed(0)} dB | поріг: ${absoluteThreshold.toFixed(0)} dB`);
   }
 
-  if(lastSignalTime && (performance.now() - lastSignalTime) > 4000) {
+  // Очищення основного табло через 4 сек тиші ТІЛЬКИ якщо минув 3-секундний блок утримання тексту
+  if(lastSignalTime && (now - lastSignalTime) > 4000 && now > displayLockUntil) {
     resetOutput();
     lastSignalTime = null;
   }
@@ -281,17 +285,24 @@ function detectLoop(){
 }
 
 function onTrigger(){
-  const phrase=document.getElementById('phrase').value.trim()||'???';
-  const out=document.getElementById('output');
+  const phrase = document.getElementById('phrase').value.trim() || '???';
+  const out = document.getElementById('output');
+  
+  // Ставимо залізобетонний блок екрана на 3 секунди від моменту тригеру
+  displayLockUntil = performance.now() + 3000; 
+  
   out.textContent = "СИГНАЛ ВПІЙМАНО: " + phrase;
-  out.className='output received flash';
-  setTimeout(()=>out.classList.remove('flash'), 600);
+  out.className = 'output received flash';
+  setTimeout(() => out.classList.remove('flash'), 600);
 }
 
 function resetOutput(){
-  const out=document.getElementById('output');
-  out.textContent='— очікую —';
-  out.className='output';
+  // Якщо 3 секунди ще не минули — ігноруємо будь-яку спробу очистити табло
+  if (performance.now() < displayLockUntil) return;
+  
+  const out = document.getElementById('output');
+  out.textContent = '— очікую —';
+  out.className = 'output';
 }
 
 function setTxStatus(msg){ document.getElementById('txStatus').textContent=msg; document.getElementById('txStatus').className='status'+(msg?'  on':''); }
