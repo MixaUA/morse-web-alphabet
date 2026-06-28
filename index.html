@@ -254,6 +254,7 @@ button.accent:hover{background:#333}
     <div class="btn-row">
       <button id="micBtn" onclick="toggleMic()">&#9679; Слухати</button>
       <button class="accent" onclick="playMorse()">&#9654; Відтворити (тест-передавач)</button>
+      <button id="loopBtn" onclick="toggleLoop()">&#128257; Закільцювати: ВИМК</button>
       <button id="stopBtn" onclick="stopPlay()" style="display:none">&#9632; Стоп</button>
       <button onclick="clearAll()">&#10005; Очистити</button>
     </div>
@@ -407,21 +408,20 @@ function renderVis(coded){
    просто Web Audio API цього ж браузера (або іншого пристрою,
    якщо відкрити цю сторінку на двох телефонах поруч).
 */
-let audioCtx=null,playing=false,stopFlag=false;
-async function playMorse(){
-  if(playing){stopPlay();return;}
-  const coded=document.getElementById('inp').value?encode():'';
-  if(!coded)return;
-  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==='suspended')await audioCtx.resume();
+let audioCtx=null,playing=false,stopFlag=false,loopMode=false;
+
+function toggleLoop(){
+  loopMode=!loopMode;
+  document.getElementById('loopBtn').textContent = (loopMode?'🔁 Закільцювати: ВКЛ':'🔁 Закільцювати: ВИМК');
+}
+
+async function playOnce(coded){
   const symbols=coded.replace(/\//g,' ');
-  document.getElementById('stopBtn').style.display='';
-  playing=true;stopFlag=false;
   const vis=document.getElementById('vis');
   const spans=[...vis.querySelectorAll('.sym')];
   let idx=0;
   for(const ch of symbols){
-    if(stopFlag)break;
+    if(stopFlag)return;
     if(ch==='.'||ch==='-'){
       const osc=audioCtx.createOscillator();
       const g=audioCtx.createGain();
@@ -442,6 +442,31 @@ async function playMorse(){
       await sleep(UNIT*2);idx++;
     }
   }
+}
+
+/* Зациклене відтворення з паузою 3с між повторами — рівно як
+   delay(3000) у скетчі Ардуїно. Ця ж 3-секундна тиша вже
+   розпізнається декодером (audioUnit*30) як роздільник речень
+   і автоматично додає " / " — тож роздільник узгоджений з обох боків. */
+async function playMorse(){
+  if(playing){stopPlay();return;}
+  const coded=document.getElementById('inp').value?encode():'';
+  if(!coded)return;
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')await audioCtx.resume();
+
+  document.getElementById('stopBtn').style.display='';
+  playing=true;stopFlag=false;
+
+  do{
+    await playOnce(coded);
+    if(stopFlag)break;
+    if(loopMode){
+      dbg('⏸ Пауза 3с перед повтором...');
+      await sleep(3000);
+    }
+  }while(loopMode && !stopFlag);
+
   playing=false;stopFlag=false;
   document.getElementById('stopBtn').style.display='none';
 }
@@ -599,7 +624,17 @@ async function toggleMic(){
   try{
     if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
     if(audioCtx.state==='suspended')await audioCtx.resume();
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    /* Вимикаємо обробку мікрофона: noiseSuppression/AGC агресивно
+       глушать саме стабільні вузькополосні тони (наш сигнал), особливо
+       на телефонах — це і є головна причина поганого розпізнавання. */
+    micStream=await navigator.mediaDevices.getUserMedia({
+      audio:{
+        echoCancellation:false,
+        noiseSuppression:false,
+        autoGainControl:false
+      },
+      video:false
+    });
     const source=audioCtx.createMediaStreamSource(micStream);
     analyserNode=audioCtx.createAnalyser();
     analyserNode.fftSize=FFT_SIZE;
