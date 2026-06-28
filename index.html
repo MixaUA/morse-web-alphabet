@@ -539,6 +539,12 @@ let noiseFloor=-105,calibFrames=0,isCalibrated=false;
 
 /* Буфер FFT виділяємо один раз заздалегідь, а не на кожному кадрі —
    менше сміття для збирача пам'яті при довгому прослуховуванні ефіру. */
+/* Шукаємо пік не в одній фіксованій комірці FFT, а в діапазоні частот
+   навколо несучої. Один бін при FFT_SIZE=2048 і sr~48000 — це ~23 Гц,
+   а реальна частота "плаває" через акустику кімнати, відстань, кут
+   телефону тощо. ±150 Гц дає запас в ~6-7 бінів в обидва боки. */
+const FREQ_SEARCH_RANGE_HZ = 150;
+
 let fftData=null;
 
 function decoderLoop(){
@@ -548,12 +554,25 @@ function decoderLoop(){
   analyserNode.getFloatFrequencyData(fftData);
   const data = fftData;
   const sr=audioCtx.sampleRate;
+  const binWidth = sr/FFT_SIZE;
   const targetBin=Math.round(TARGET_FREQ*FFT_SIZE/sr);
-  let sigDb=data[targetBin];
-  if(!isFinite(sigDb))sigDb=-120;
+  const searchBins=Math.max(1, Math.round(FREQ_SEARCH_RANGE_HZ/binWidth));
+  const loBin=Math.max(0,targetBin-searchBins);
+  const hiBin=Math.min(data.length-1,targetBin+searchBins);
+
+  // Пік у вікні навколо несучої — а не фіксований бін
+  let sigDb=-120, peakBin=targetBin;
+  for(let b=loBin;b<=hiBin;b++){
+    const v=data[b];
+    if(isFinite(v) && v>sigDb){ sigDb=v; peakBin=b; }
+  }
+
+  // Шум рахуємо поза вікном пошуку (з обох боків), щоб не зачепити сам сигнал
   let noiseSum=0,noiseCnt=0;
-  for(let b=10;b<targetBin-20;b++){const val=data[b];if(isFinite(val)){noiseSum+=val;noiseCnt++;}}
+  for(let b=10;b<loBin-5;b++){const val=data[b];if(isFinite(val)){noiseSum+=val;noiseCnt++;}}
+  for(let b=hiBin+5;b<Math.min(data.length,loBin+400);b++){const val=data[b];if(isFinite(val)){noiseSum+=val;noiseCnt++;}}
   const currentNoise=noiseCnt>0?(noiseSum/noiseCnt):-120;
+
   if(!isCalibrated){
     if(currentNoise<=-150)return;
     noiseFloor=calibFrames===0?currentNoise:noiseFloor*0.8+currentNoise*0.2;
@@ -561,14 +580,24 @@ function decoderLoop(){
     document.getElementById('statusTxt').textContent=`Калібрація... ${Math.round(calibFrames/30*100)}%`;
     if(calibFrames>=30){
       isCalibrated=true;
-      dbg(`✅ Базовий шум: ${Math.round(noiseFloor)} дБ. Готовий.`);
+      dbg(`✅ Базовий шум: ${Math.round(noiseFloor)} дБ. Готовий. Пошук у ±${FREQ_SEARCH_RANGE_HZ}Гц навколо ${TARGET_FREQ}Гц.`);
     }
     return;
   }
+
+  // Повільна постійна підстройка шумового порогу під час тиші —
+  // акустика кімнати може дрейфувати, поки телефон не лежить нерухомо.
+  if(sigDb < noiseFloor+15){
+    noiseFloor = noiseFloor*0.995 + currentNoise*0.005;
+  }
+
   const threshold=noiseFloor+25;
   const isTone=sigDb>threshold;
   if(!decoderLoop._tick)decoderLoop._tick=0;
-  if(++decoderLoop._tick%45===0){dbg(`sig=${Math.round(sigDb)} дБ | поріг=${Math.round(threshold)} дБ | ${isTone?'ТОН':'тиша'}`);}
+  if(++decoderLoop._tick%45===0){
+    const peakFreq=Math.round(peakBin*binWidth);
+    dbg(`sig=${Math.round(sigDb)} дБ @${peakFreq}Гц | поріг=${Math.round(threshold)} дБ | ${isTone?'ТОН':'тиша'}`);
+  }
   document.getElementById('statusTxt').textContent=`Ефір: ${Math.round(sigDb)} дБ | Поріг: ${Math.round(threshold)} дБ`;
   const now=performance.now();
   const delta=now-stateTime;
@@ -624,17 +653,7 @@ async function toggleMic(){
   try{
     if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
     if(audioCtx.state==='suspended')await audioCtx.resume();
-    /* Вимикаємо обробку мікрофона: noiseSuppression/AGC агресивно
-       глушать саме стабільні вузькополосні тони (наш сигнал), особливо
-       на телефонах — це і є головна причина поганого розпізнавання. */
-    micStream=await navigator.mediaDevices.getUserMedia({
-      audio:{
-        echoCancellation:false,
-        noiseSuppression:false,
-        autoGainControl:false
-      },
-      video:false
-    });
+    micStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     const source=audioCtx.createMediaStreamSource(micStream);
     analyserNode=audioCtx.createAnalyser();
     analyserNode.fftSize=FFT_SIZE;
