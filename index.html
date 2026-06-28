@@ -1,16 +1,21 @@
-
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Transmitter & Receiver</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #0d0d0d; }
 .wrap {
   max-width: 600px; margin: 0 auto; padding: 2rem 1.5rem;
-  font-family: var(--font-mono); color: #c8c8b8;
+  font-family: monospace; color: #c8c8b8;
   display: flex; flex-direction: column; gap: 1.5rem;
 }
 input[type=text] {
   width: 100%; padding: 10px 14px;
   background: #1a1a1a; border: 1px solid #333;
-  border-radius: 6px; color: #e8e8d8; font-family: var(--font-mono);
+  border-radius: 6px; color: #e8e8d8; font-family: monospace;
   font-size: 15px; outline: none; letter-spacing: 1px;
 }
 input[type=text]:focus { border-color: #555; }
@@ -19,12 +24,13 @@ input[type=range] { width: 100%; accent-color: #555; }
   width: 100%; padding: 12px;
   background: #1e1e1e; border: 1px solid #444;
   border-radius: 6px; color: #c8c8b8;
-  font-family: var(--font-mono); font-size: 14px;
+  font-family: monospace; font-size: 14px;
   cursor: pointer; transition: background 0.15s, border-color 0.15s;
   letter-spacing: 1px;
 }
 .btn:hover { background: #252525; border-color: #666; }
 .btn.active { background: #1a1a1a; border-color: #8a3a3a; color: #e87878; }
+.btn.listen-active { background: #1a1a1a; border-color: #3a8a3a; color: #7ec87e; }
 .label { font-size: 12px; color: #555; margin-bottom: 6px; letter-spacing: 1px; }
 .output {
   min-height: 80px; padding: 1.25rem;
@@ -40,11 +46,16 @@ input[type=range] { width: 100%; accent-color: #555; }
 .status.on { color: #556655; }
 .interval-row { display: flex; align-items: center; gap: 12px; }
 .interval-val { font-size: 13px; color: #666; white-space: nowrap; min-width: 36px; text-align: right; }
+.section-title { font-size: 11px; color: #444; border-bottom: 1px dashed #222; padding-bottom: 4px; margin-top: 0.5rem; text-transform: uppercase; letter-spacing: 2px;}
 </style>
+</head>
+<body>
 
 <div class="wrap">
+  <!-- БЛОК НАЛАШТУВАНЬ ТА ПЕРЕДАВАЧА -->
+  <div class="section-title">Передавач</div>
   <div>
-    <div class="label">ФРАЗА (латиниця)</div>
+    <div class="label">ФРАЗА ДЛЯ ГЕНЕРАЦІЇ (латиниця)</div>
     <input type="text" id="phrase" value="SOS COSMIC SIGNAL" autocomplete="off" spellcheck="false">
   </div>
 
@@ -56,17 +67,22 @@ input[type=range] { width: 100%; accent-color: #555; }
     </div>
   </div>
 
-  <button class="btn" id="mainBtn" onclick="toggle()">▶ ЗАПУСТИТИ СИГНАЛ</button>
+  <button class="btn" id="txBtn" onclick="toggleTransmit()">▶ ЗАПУСТИТИ ГЕНЕРАЦІЮ СИГНАЛУ</button>
+  <div class="status" id="txStatus"></div>
+
+  <!-- БЛОК ПРИЙМАЧА -->
+  <div class="section-title">Приймач</div>
+  <button class="btn" id="rxBtn" onclick="toggleListen()">👂 УВІМКНУТИ МОНІТОРИНГ ЕФІРУ</button>
 
   <div class="output" id="output">— очікую —</div>
-  <div class="status" id="status"></div>
+  <div class="status" id="rxStatus"></div>
 </div>
 
 <script>
 let audioCtx=null, analyser=null, micStream=null, rafId=null;
-let cycleTimer=null, listening=false;
+let listening=false, transmitting=false;
 let noiseFloor=-120, calibFrames=0, isCalibrated=false;
-let holdStart=null, active=false;
+let holdStart=null, lastSignalTime=null;
 
 const FFT_SIZE=4096, CALIB_FRAMES=40;
 const UNIT=110; // мс на крапку морзе
@@ -77,116 +93,54 @@ document.getElementById('interval').oninput=function(){
 };
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
 function getCtx(){
   if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
+
 function textToMorse(t){
   return t.toUpperCase().split(/\s+/)
     .map(w=>[...w].map(c=>LATIN[c]||'').filter(Boolean).join(' '))
     .join(' / ');
 }
 
-async function toggle(){
-  if(active){ await stopAll(); return; }
-  active=true;
-  document.getElementById('mainBtn').textContent='■ ЗУПИНИТИ';
-  document.getElementById('mainBtn').classList.add('active');
-  await startMic();
-  runCycle();
-}
-
-async function stopAll(){
-  active=false;
-  clearTimeout(cycleTimer);
-  stopMic();
-  document.getElementById('mainBtn').textContent='▶ ЗАПУСТИТИ СИГНАЛ';
-  document.getElementById('mainBtn').classList.remove('active');
-  setStatus('');
-}
-
-// ── МІК ──────────────────────────────────────────────────────
-async function startMic(){
-  try{
-    micStream=await navigator.mediaDevices.getUserMedia({
-      audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false
-    });
-    const ctx=getCtx();
-    analyser=ctx.createAnalyser();
-    analyser.fftSize=FFT_SIZE;
-    analyser.smoothingTimeConstant=0.75;
-    ctx.createMediaStreamSource(micStream).connect(analyser);
-    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; holdStart=null;
-    detectLoop();
-  }catch(e){ setStatus('мікрофон недоступний: '+e.message); }
-}
-
-function stopMic(){
-  listening=false;
-  if(rafId) cancelAnimationFrame(rafId);
-  if(micStream) micStream.getTracks().forEach(t=>t.stop());
-  analyser=null; micStream=null;
-}
-
-function detectLoop(){
-  if(!listening||!analyser) return;
-  const buf=new Float32Array(analyser.frequencyBinCount);
-  analyser.getFloatFrequencyData(buf);
-  const binSize=audioCtx.sampleRate/FFT_SIZE;
-
-  if(!isCalibrated){
-    let sum=0,cnt=0;
-    for(let i=5;i<buf.length;i++){ if(isFinite(buf[i])){sum+=buf[i];cnt++;} }
-    const fn=cnt>0?sum/cnt:-120;
-    noiseFloor=calibFrames===0?fn:noiseFloor*0.85+fn*0.15;
-    calibFrames++;
-    if(calibFrames>=CALIB_FRAMES){
-      isCalibrated=true;
-      setStatus(`калібровано | шум ${noiseFloor.toFixed(0)} dB | поріг ${(noiseFloor+25).toFixed(0)} dB`);
-    }
-    rafId=requestAnimationFrame(detectLoop);
+// ─── ЛОГІКА ПЕРЕДАВАЧА ───────────────────────────────────────
+async function toggleTransmit() {
+  const txBtn = document.getElementById('txBtn');
+  if(transmitting) {
+    transmitting = false;
+    txBtn.textContent = '▶ ЗАПУСТИТИ ГЕНЕРАЦІЮ СИГНАЛУ';
+    txBtn.classList.remove('active');
+    setTxStatus('Генерацію зупинено.');
     return;
   }
-
-  const threshold=noiseFloor+25;
-  const fMin=2500, fMax=3050;
-  const minBin=Math.floor(fMin/binSize), maxBin=Math.ceil(fMax/binSize);
-  let zoneMax=-Infinity;
-  for(let i=minBin;i<=maxBin&&i<buf.length;i++){ if(buf[i]>zoneMax) zoneMax=buf[i]; }
-  const inZone=zoneMax>threshold;
-
-  if(inZone){
-    if(!holdStart) holdStart=performance.now();
-    const elapsed=(performance.now()-holdStart)/1000;
-    if(elapsed>=1.2){ onTrigger(); holdStart=null; }
-    else setStatus(`⚡ сигнал... ${(1.2-elapsed).toFixed(1)}с`);
-  } else {
-    holdStart=null;
-    setStatus(`слухаю | зона: ${zoneMax.toFixed(0)} dB | поріг: ${threshold.toFixed(0)} dB`);
-  }
-
-  rafId=requestAnimationFrame(detectLoop);
+  
+  transmitting = true;
+  txBtn.textContent = '■ ЗУПИНИТИ ГЕНЕРАЦІЮ';
+  txBtn.classList.add('active');
+  runTxCycle();
 }
 
-function onTrigger(){
-  const phrase=document.getElementById('phrase').value.trim()||'???';
-  const out=document.getElementById('output');
-  out.textContent=phrase;
-  out.className='output received flash';
-  setTimeout(()=>out.classList.remove('flash'),600);
-}
-
-// ── ЦИКЛ ГЕНЕРАТОРА ──────────────────────────────────────────
-let cycleStopped=false;
-async function runCycle(){
-  cycleStopped=false;
-  while(active){
-    const phrase=document.getElementById('phrase').value.trim();
-    if(phrase) await playMorse(phrase);
-    if(!active) break;
-    const gap=parseInt(document.getElementById('interval').value)*1000;
-    setStatus(`наступний сигнал через ${document.getElementById('interval').value}с...`);
-    await sleep(gap);
+async function runTxCycle(){
+  while(transmitting){
+    const phrase = document.getElementById('phrase').value.trim();
+    if(phrase) {
+      setTxStatus('📡 НАДСИЛАЮ СИГНАЛ...');
+      await playMorse(phrase);
+    }
+    if(!transmitting) break;
+    
+    // Очищення поля виводу відразу при переході в паузу
+    resetOutput();
+    
+    const intervalSec = parseInt(document.getElementById('interval').value);
+    for(let i = intervalSec; i > 0; i--) {
+      if(!transmitting) break;
+      setTxStatus(`Пауза. Наступний сигнал через ${i}с...`);
+      await sleep(1000);
+    }
   }
 }
 
@@ -194,7 +148,7 @@ async function playMorse(text){
   const coded=textToMorse(text).replace(/\//g,' ');
   const ctx=getCtx();
   for(const ch of coded){
-    if(!active) return;
+    if(!transmitting) return;
     if(ch==='.'||ch==='-'){
       const osc=ctx.createOscillator();
       const g=ctx.createGain();
@@ -211,9 +165,111 @@ async function playMorse(text){
     } else if(ch===' '){
       await sleep(UNIT*2.5);
     }
-    if(!active) return;
   }
 }
 
-function setStatus(msg){ document.getElementById('status').textContent=msg; document.getElementById('status').className='status'+(msg?'  on':''); }
+// ─── ЛОГІКА ПРИЙМАЧА ─────────────────────────────────────────
+async function toggleListen() {
+  const rxBtn = document.getElementById('rxBtn');
+  if(listening) {
+    stopMic();
+    rxBtn.textContent = '👂 УВІМКНУТИ МОНІТОРИНГ ЕФІРУ';
+    rxBtn.classList.remove('listen-active');
+    return;
+  }
+  
+  rxBtn.textContent = '■ ВИМКНУТИ МОНІТОРИНГ';
+  rxBtn.classList.add('listen-active');
+  await startMic();
+}
+
+async function startMic(){
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({
+      audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false
+    });
+    const ctx=getCtx();
+    analyser=ctx.createAnalyser();
+    analyser.fftSize=FFT_SIZE;
+    analyser.smoothingTimeConstant=0.75;
+    ctx.createMediaStreamSource(micStream).connect(analyser);
+    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; holdStart=null; lastSignalTime=null;
+    detectLoop();
+  }catch(e){ setRxStatus('мікрофон недоступний: '+e.message); }
+}
+
+function stopMic(){
+  listening=false;
+  if(rafId) cancelAnimationFrame(rafId);
+  if(micStream) micStream.getTracks().forEach(t=>t.stop());
+  analyser=null; micStream=null;
+  setRxStatus('Моніторинг вимкнено.');
+  resetOutput();
+}
+
+function detectLoop(){
+  if(!listening||!analyser) return;
+  const buf=new Float32Array(analyser.frequencyBinCount);
+  analyser.getFloatFrequencyData(buf);
+  const binSize=audioCtx.sampleRate/FFT_SIZE;
+
+  if(!isCalibrated){
+    let sum=0,cnt=0;
+    for(let i=5;i<buf.length;i++){ if(isFinite(buf[i])){sum+=buf[i];cnt++;} }
+    const fn=cnt>0?sum/cnt:-120;
+    noiseFloor=calibFrames===0?fn:noiseFloor*0.85+fn*0.15;
+    calibFrames++;
+    if(calibFrames>=CALIB_FRAMES){
+      isCalibrated=true;
+      setRxStatus(`калібровано | шум ${noiseFloor.toFixed(0)} dB | поріг ${(noiseFloor+25).toFixed(0)} dB`);
+    }
+    rafId=requestAnimationFrame(detectLoop);
+    return;
+  }
+
+  const threshold=noiseFloor+25;
+  const fMin=2500, fMax=3050;
+  const minBin=Math.floor(fMin/binSize), maxBin=Math.ceil(fMax/binSize);
+  let zoneMax=-Infinity;
+  for(let i=minBin;i<=maxBin&&i<buf.length;i++){ if(buf[i]>zoneMax) zoneMax=buf[i]; }
+  const inZone=zoneMax>threshold;
+
+  if(inZone){
+    lastSignalTime = performance.now(); // Фіксуємо час активності
+    if(!holdStart) holdStart=performance.now();
+    const elapsed=(performance.now()-holdStart)/1000;
+    if(elapsed>=1.2){ onTrigger(); holdStart=null; }
+    else setRxStatus(`⚡ сигнал... ${(1.2-elapsed).toFixed(1)}с`);
+  } else {
+    holdStart=null;
+    setRxStatus(`слухаю | зона: ${zoneMax.toFixed(0)} dB | поріг: ${threshold.toFixed(0)} dB`);
+    
+    // Автоматичне динамічне скидання екрана, якщо сигналу немає більше 4 секунд
+    if(lastSignalTime && (performance.now() - lastSignalTime) > 4000) {
+      resetOutput();
+      lastSignalTime = null;
+    }
+  }
+
+  rafId=requestAnimationFrame(detectLoop);
+}
+
+function onTrigger(){
+  const phrase=document.getElementById('phrase').value.trim()||'???';
+  const out=document.getElementById('output');
+  out.textContent = "СИГНАЛ ВПІЙМАНО: " + phrase;
+  out.className='output received flash';
+  setTimeout(()=>out.classList.remove('flash'), 600);
+}
+
+function resetOutput(){
+  const out=document.getElementById('output');
+  out.textContent='— очікую —';
+  out.className='output';
+}
+
+function setTxStatus(msg){ document.getElementById('txStatus').textContent=msg; document.getElementById('txStatus').className='status'+(msg?'  on':''); }
+function setRxStatus(msg){ document.getElementById('rxStatus').textContent=msg; document.getElementById('rxStatus').className='status'+(msg?'  on':''); }
 </script>
+</body>
+</html>
