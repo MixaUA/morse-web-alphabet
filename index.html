@@ -1,404 +1,219 @@
 
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-.wrap { padding: 1rem; display: flex; flex-direction: column; gap: 12px; font-family: var(--font-mono); }
-.panel { background: var(--surface-1); border: 0.5px solid var(--border); border-radius: 12px; padding: 1rem; }
-.panel h2 { font-size: 13px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.btn { width: 100%; padding: 10px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-primary); font-family: var(--font-mono); font-size: 13px; cursor: pointer; transition: background 0.15s; }
-.btn:hover { background: var(--surface-0); }
-.btn:disabled { opacity: 0.4; cursor: default; }
-.btn.danger { background: var(--bg-danger); border-color: var(--border-danger); color: var(--text-danger); }
-.btn.accent { background: var(--bg-accent); border-color: var(--border-accent); color: var(--text-accent); }
-.fi { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
-.fi label { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 42px; }
-.fi input[type=number] { width: 66px; font-size: 12px; padding: 4px 6px; }
-.fi input[type=range] { flex: 1; }
-.freq-bar-wrap { height: 34px; background: var(--surface-0); border-radius: var(--radius); border: 0.5px solid var(--border); overflow: hidden; position: relative; margin-top: 6px; }
-.freq-val { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); font-size: 11px; font-weight: 500; color: var(--text-secondary); z-index: 2; }
-.freq-fill { height: 100%; width: 0%; background: var(--bg-accent); border-right: 2px solid var(--border-accent); transition: width 0.08s; }
-.freq-fill.hot { background: var(--bg-success); border-color: var(--border-success); }
-.zone-marker { position: absolute; top: 0; height: 100%; background: rgba(59,109,17,0.15); border-left: 1px dashed #3B6D11; border-right: 1px dashed #3B6D11; }
-.zone-fill { position: absolute; top: 0; height: 100%; transition: background 0.1s; }
-.zone-fill.hot { background: rgba(59,109,17,0.2); }
-.countdown { font-size: 22px; font-weight: 500; color: var(--text-accent); text-align: center; min-height: 30px; margin-top: 4px; }
-.calib-bar-wrap { height: 5px; background: var(--surface-0); border-radius: 3px; overflow: hidden; margin: 5px 0 2px; border: 0.5px solid var(--border); }
-.calib-bar { height: 100%; width: 0%; background: var(--bg-accent); border-radius: 3px; transition: width 0.1s; }
-.calib-bar.done { background: var(--bg-success); }
-.sbar { font-size: 11px; padding: 5px 8px; border-radius: var(--radius); background: var(--surface-0); border: 0.5px solid var(--border); color: var(--text-secondary); display: flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 26px; }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
-.dot.amber { background: #BA7517; animation: p .5s infinite; }
-.dot.green { background: #3B6D11; animation: p 1.2s infinite; }
-.dot.red { background: #A32D2D; animation: p .3s infinite; }
-@keyframes p { 0%,100%{opacity:1} 50%{opacity:.2} }
-
-/* morse tape */
-.morse-tape { background: var(--surface-0); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 6px 10px; font-size: 13px; letter-spacing: 3px; color: var(--text-primary); min-height: 32px; margin-bottom: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.morse-tape .cur { color: var(--text-accent); }
-
-/* decoded box */
-.decoded-box { background: var(--surface-0); border: 0.5px solid var(--border-success); border-radius: var(--radius); padding: 10px 14px; font-size: 15px; font-weight: 500; color: var(--text-success); min-height: 48px; display: flex; align-items: center; justify-content: center; text-align: center; letter-spacing: 1px; margin-bottom: 8px; transition: background 0.3s; }
-.decoded-box.flash { background: var(--bg-success); }
-
-.terminal { background: #0a0f0a; border-radius: var(--radius); border: 0.5px solid var(--border); padding: 8px 10px; height: 180px; overflow-y: auto; font-size: 11px; line-height: 1.7; color: #7ec87e; font-family: var(--font-mono); }
-.terminal .ts { color: #4a7a4a; }
-.terminal .err { color: #c87e7e; }
-.terminal .ok { color: #a0e0a0; font-weight: 500; }
-.terminal .info { color: #7eaec8; }
-.term-controls { display: flex; gap: 6px; margin-top: 6px; }
-.term-btn { flex: 1; padding: 6px; font-size: 11px; border-radius: var(--radius); border: 0.5px solid var(--border); background: var(--surface-0); color: var(--text-muted); font-family: var(--font-mono); cursor: pointer; }
-.term-btn:hover { color: var(--text-primary); }
-.cycle-badge { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 4px; }
+body { background: #0d0d0d; }
+.wrap {
+  max-width: 600px; margin: 0 auto; padding: 2rem 1.5rem;
+  font-family: var(--font-mono); color: #c8c8b8;
+  display: flex; flex-direction: column; gap: 1.5rem;
+}
+input[type=text] {
+  width: 100%; padding: 10px 14px;
+  background: #1a1a1a; border: 1px solid #333;
+  border-radius: 6px; color: #e8e8d8; font-family: var(--font-mono);
+  font-size: 15px; outline: none; letter-spacing: 1px;
+}
+input[type=text]:focus { border-color: #555; }
+input[type=range] { width: 100%; accent-color: #555; }
+.btn {
+  width: 100%; padding: 12px;
+  background: #1e1e1e; border: 1px solid #444;
+  border-radius: 6px; color: #c8c8b8;
+  font-family: var(--font-mono); font-size: 14px;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  letter-spacing: 1px;
+}
+.btn:hover { background: #252525; border-color: #666; }
+.btn.active { background: #1a1a1a; border-color: #8a3a3a; color: #e87878; }
+.label { font-size: 12px; color: #555; margin-bottom: 6px; letter-spacing: 1px; }
+.output {
+  min-height: 80px; padding: 1.25rem;
+  background: #111; border: 1px solid #222;
+  border-radius: 6px; font-size: 18px; font-weight: 500;
+  color: #3a3a3a; text-align: center;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: 2px; transition: color 0.3s, border-color 0.3s;
+}
+.output.received { color: #7ec87e; border-color: #2a4a2a; }
+.output.flash { color: #a0e8a0; border-color: #3a6a3a; }
+.status { font-size: 12px; color: #444; text-align: center; letter-spacing: 1px; min-height: 18px; }
+.status.on { color: #556655; }
+.interval-row { display: flex; align-items: center; gap: 12px; }
+.interval-val { font-size: 13px; color: #666; white-space: nowrap; min-width: 36px; text-align: right; }
 </style>
 
 <div class="wrap">
-<div class="row2">
-
-  <!-- ГЕНЕРАТОР -->
-  <div class="panel">
-    <h2>📡 Генератор (зовні)</h2>
-    <div class="fi">
-      <label>Hz</label>
-      <input type="range" id="freqSlider" min="200" max="6000" value="2754" step="1">
-      <input type="number" id="freqNum" value="2754" min="200" max="6000" step="1">
-    </div>
-    <div class="fi">
-      <label>юніт мс</label>
-      <input type="range" id="unitSlider" min="60" max="300" value="120" step="10">
-      <input type="number" id="unitNum" value="120" min="60" max="300" step="10">
-    </div>
-    <div style="margin-bottom:8px;">
-      <textarea id="morseText" rows="2" style="width:100%;font-size:12px;padding:6px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface-0);color:var(--text-primary);font-family:var(--font-mono);resize:none;">SOS COSMIC SIGNAL</textarea>
-    </div>
-    <div class="morse-tape" id="morseTape">—</div>
-    <div class="row2" style="gap:6px;">
-      <button class="btn accent" id="btnCycle" onclick="toggleCycle()">🔁 Цикл старт</button>
-      <button class="btn danger" id="btnCycleStop" onclick="stopCycle()" style="display:none;">■ Стоп цикл</button>
-    </div>
-    <div class="cycle-badge" id="cycleBadge">вимкнено</div>
-    <div class="sbar"><div class="dot" id="genDot"></div><span id="genStatus">готовий</span></div>
+  <div>
+    <div class="label">ФРАЗА (латиниця)</div>
+    <input type="text" id="phrase" value="SOS COSMIC SIGNAL" autocomplete="off" spellcheck="false">
   </div>
 
-  <!-- ПРИЙМАЧ -->
-  <div class="panel">
-    <h2>🎧 Приймач (всередині)</h2>
-    <div class="fi">
-      <label>мін Hz</label>
-      <input type="number" id="fMin" value="2500" step="50">
-      <label>макс</label>
-      <input type="number" id="fMax" value="3000" step="50">
+  <div>
+    <div class="label">ІНТЕРВАЛ МІЖ СИГНАЛАМИ</div>
+    <div class="interval-row">
+      <input type="range" id="interval" min="3" max="20" value="10" step="1">
+      <span class="interval-val" id="intervalVal">10 с</span>
     </div>
-    <div class="fi">
-      <label>утр, с</label>
-      <input type="number" id="holdTime" value="1.5" step="0.5">
-    </div>
-    <div class="row2" style="gap:6px;">
-      <button class="btn" id="btnListen" onclick="startListening()">👂 Слухати</button>
-      <button class="btn danger" id="btnStop" onclick="stopListening()" style="display:none;">■ Стоп</button>
-    </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;" id="calibLabel">очікування...</div>
-    <div class="calib-bar-wrap"><div class="calib-bar" id="calibBar"></div></div>
-    <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">рівень у зоні</div>
-    <div class="freq-bar-wrap">
-      <div class="zone-marker" id="zoneMarker"></div>
-      <div class="zone-fill" id="zoneFill"></div>
-      <div class="freq-val" id="zoneDbDisplay">— dB</div>
-      <div class="freq-fill" id="zoneDbFill"></div>
-    </div>
-    <div class="countdown" id="countdown"></div>
-    <div class="sbar"><div class="dot" id="recvDot"></div><span id="recvStatus">вимкнено</span></div>
   </div>
-</div>
 
-<!-- ДЕКОДОВАНИЙ ТЕКСТ -->
-<div class="panel">
-  <h2>📨 Прийнятий сигнал</h2>
-  <div class="decoded-box" id="decodedBox">очікую сигнал...</div>
-  <div class="row2" style="gap:6px;">
-    <button class="btn" onclick="resetReceiver()">↺ Скинути приймач</button>
-    <button class="btn" onclick="resetAll()">✕ Скинути все</button>
-  </div>
-</div>
+  <button class="btn" id="mainBtn" onclick="toggle()">▶ ЗАПУСТИТИ СИГНАЛ</button>
 
-<!-- ТЕРМІНАЛ -->
-<div class="panel">
-  <h2>⬛ Термінал</h2>
-  <div class="terminal" id="terminal"></div>
-  <div class="term-controls">
-    <button class="term-btn" onclick="copyLog()"><i class="ti ti-copy" aria-hidden="true"></i> копіювати</button>
-    <button class="term-btn" onclick="clearLog()"><i class="ti ti-trash" aria-hidden="true"></i> очистити</button>
-  </div>
-</div>
+  <div class="output" id="output">— очікую —</div>
+  <div class="status" id="status"></div>
 </div>
 
 <script>
-// ── стан ──────────────────────────────────────────────────────
 let audioCtx=null, analyser=null, micStream=null, rafId=null;
-let holdStart=null, listening=false, logLines=[];
-let noiseFloor=-120, calibFrames=0, isCalibrated=false, tickCount=0;
-let triggerCount=0;
+let cycleTimer=null, listening=false;
+let noiseFloor=-120, calibFrames=0, isCalibrated=false;
+let holdStart=null, active=false;
 
-// цикл генератора
-let cycleActive=false, cycleStopFlag=false, cycleCount=0;
-
-const CALIB_FRAMES=40, FFT_SIZE=4096, MAX_FREQ=6000;
+const FFT_SIZE=4096, CALIB_FRAMES=40;
+const UNIT=110; // мс на крапку морзе
 const LATIN={A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..',0:'-----',1:'.----',2:'..---',3:'...--',4:'....-',5:'.....',6:'-....',7:'--...',8:'---..',9:'----.'};
 
-// ── утиліти ──────────────────────────────────────────────────
-function ts(){ return new Date().toTimeString().slice(0,8); }
-function log(msg,cls=''){
-  const t=document.getElementById('terminal');
-  t.innerHTML+=`<div><span class="ts">[${ts()}]</span> <span class="${cls}">${msg}</span></div>`;
-  logLines.push(`[${ts()}] ${msg.replace(/<[^>]+>/g,'')}`);
-  if(t.children.length>400) t.removeChild(t.firstChild);
-  t.scrollTop=t.scrollHeight;
-}
-function copyLog(){ navigator.clipboard.writeText(logLines.join('\n')).then(()=>log('скопійовано','info')); }
-function clearLog(){ document.getElementById('terminal').innerHTML=''; logLines=[]; }
+document.getElementById('interval').oninput=function(){
+  document.getElementById('intervalVal').textContent=this.value+' с';
+};
 
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function getCtx(){
   if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
   return audioCtx;
 }
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-
-// ── sync sliders ─────────────────────────────────────────────
-document.getElementById('freqSlider').oninput=function(){ document.getElementById('freqNum').value=this.value; updateMorseTape(); };
-document.getElementById('freqNum').oninput=function(){ document.getElementById('freqSlider').value=this.value; };
-document.getElementById('unitSlider').oninput=function(){ document.getElementById('unitNum').value=this.value; };
-document.getElementById('unitNum').oninput=function(){ document.getElementById('unitSlider').value=this.value; };
-document.getElementById('morseText').oninput=updateMorseTape;
-
-function updateZone(){
-  const fMin=parseFloat(document.getElementById('fMin').value);
-  const fMax=parseFloat(document.getElementById('fMax').value);
-  ['zoneMarker','zoneFill'].forEach(id=>{
-    document.getElementById(id).style.left=(fMin/MAX_FREQ*100).toFixed(1)+'%';
-    document.getElementById(id).style.width=((fMax-fMin)/MAX_FREQ*100).toFixed(1)+'%';
-  });
-}
-document.getElementById('fMin').oninput=updateZone;
-document.getElementById('fMax').oninput=updateZone;
-updateZone();
-
-// ── морзе утиліти ────────────────────────────────────────────
-function textToMorse(text){
-  return text.toUpperCase().split(/\s+/)
+function textToMorse(t){
+  return t.toUpperCase().split(/\s+/)
     .map(w=>[...w].map(c=>LATIN[c]||'').filter(Boolean).join(' '))
     .join(' / ');
 }
-function updateMorseTape(){
-  const coded=textToMorse(document.getElementById('morseText').value||'');
-  document.getElementById('morseTape').textContent=coded||'—';
-}
-updateMorseTape();
 
-// ── ГЕНЕРАТОР ─────────────────────────────────────────────────
-async function playMorseOnce(text, freq, unit){
-  const coded=textToMorse(text).replace(/\//g,' ');
-  for(const ch of coded){
-    if(cycleStopFlag) return;
-    if(ch==='.'||ch==='-'){
-      const ctx=getCtx();
-      const osc=ctx.createOscillator();
-      const g=ctx.createGain();
-      osc.type='sine'; osc.frequency.value=freq;
-      const len=(ch==='.'?1:3)*unit/1000;
-      const t=ctx.currentTime;
-      g.gain.setValueAtTime(0,t);
-      g.gain.linearRampToValueAtTime(0.75,t+0.005);
-      g.gain.setValueAtTime(0.75,t+len-0.005);
-      g.gain.linearRampToValueAtTime(0,t+len);
-      osc.connect(g); g.connect(ctx.destination);
-      osc.start(t); osc.stop(t+len);
-      await sleep(len*1000+unit);
-    } else if(ch===' '){
-      await sleep(unit*2);
-    }
-    if(cycleStopFlag) return;
-  }
+async function toggle(){
+  if(active){ await stopAll(); return; }
+  active=true;
+  document.getElementById('mainBtn').textContent='■ ЗУПИНИТИ';
+  document.getElementById('mainBtn').classList.add('active');
+  await startMic();
+  runCycle();
 }
 
-async function toggleCycle(){
-  if(cycleActive){ stopCycle(); return; }
-  const text=document.getElementById('morseText').value.trim();
-  if(!text) return;
-  cycleActive=true; cycleStopFlag=false; cycleCount=0;
-  document.getElementById('btnCycle').style.display='none';
-  document.getElementById('btnCycleStop').style.display='';
-  log(`🔁 цикл старт: "${text}"`, 'info');
-  while(!cycleStopFlag){
-    cycleCount++;
-    const freq=parseFloat(document.getElementById('freqNum').value);
-    const unit=parseFloat(document.getElementById('unitNum').value);
-    document.getElementById('genDot').className='dot red';
-    document.getElementById('genStatus').textContent=`цикл #${cycleCount} | ${freq} Hz`;
-    document.getElementById('cycleBadge').textContent=`цикл #${cycleCount}`;
-    log(`▶ #${cycleCount} "${text}" @ ${freq} Hz, юніт ${unit}мс`, 'info');
-    await playMorseOnce(text, freq, unit);
-    if(cycleStopFlag) break;
-    // пауза між циклами = 7 юнітів
-    await sleep(parseFloat(document.getElementById('unitNum').value)*7);
-  }
-  document.getElementById('genDot').className='dot';
-  document.getElementById('genStatus').textContent='зупинено';
-  document.getElementById('cycleBadge').textContent=`зупинено після ${cycleCount} циклів`;
-  cycleActive=false;
+async function stopAll(){
+  active=false;
+  clearTimeout(cycleTimer);
+  stopMic();
+  document.getElementById('mainBtn').textContent='▶ ЗАПУСТИТИ СИГНАЛ';
+  document.getElementById('mainBtn').classList.remove('active');
+  setStatus('');
 }
 
-function stopCycle(){
-  cycleStopFlag=true;
-  document.getElementById('btnCycleStop').style.display='none';
-  document.getElementById('btnCycle').style.display='';
-  log('■ цикл зупинено');
-}
-
-// ── ПРИЙМАЧ ───────────────────────────────────────────────────
-async function startListening(){
+// ── МІК ──────────────────────────────────────────────────────
+async function startMic(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({
+    micStream=await navigator.mediaDevices.getUserMedia({
       audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false
     });
-    micStream=stream;
     const ctx=getCtx();
     analyser=ctx.createAnalyser();
     analyser.fftSize=FFT_SIZE;
     analyser.smoothingTimeConstant=0.75;
-    ctx.createMediaStreamSource(stream).connect(analyser);
-    listening=true; holdStart=null;
-    calibFrames=0; isCalibrated=false; noiseFloor=-120; tickCount=0;
-    document.getElementById('btnListen').style.display='none';
-    document.getElementById('btnStop').style.display='';
-    document.getElementById('recvDot').className='dot amber';
-    document.getElementById('recvStatus').textContent='калібрування...';
-    log('👂 мікрофон активовано, echoCancellation=false','ok');
+    ctx.createMediaStreamSource(micStream).connect(analyser);
+    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; holdStart=null;
     detectLoop();
-  }catch(e){ log('❌ мікрофон: '+e.message,'err'); }
+  }catch(e){ setStatus('мікрофон недоступний: '+e.message); }
 }
 
-function stopListening(){
+function stopMic(){
   listening=false;
   if(rafId) cancelAnimationFrame(rafId);
   if(micStream) micStream.getTracks().forEach(t=>t.stop());
-  analyser=null; micStream=null; holdStart=null;
-  document.getElementById('btnStop').style.display='none';
-  document.getElementById('btnListen').style.display='';
-  document.getElementById('countdown').textContent='';
-  document.getElementById('zoneDbFill').style.width='0%';
-  document.getElementById('zoneDbFill').className='freq-fill';
-  document.getElementById('zoneFill').className='zone-fill';
-  document.getElementById('zoneDbDisplay').textContent='— dB';
-  document.getElementById('recvDot').className='dot';
-  document.getElementById('recvStatus').textContent='вимкнено';
-  document.getElementById('calibLabel').textContent='очікування...';
-  document.getElementById('calibBar').style.width='0%';
-  document.getElementById('calibBar').className='calib-bar';
-  log('■ приймач зупинено');
-}
-
-function resetReceiver(){
-  // скидає лічильник утримання і текст, але НЕ зупиняє слухання
-  holdStart=null;
-  document.getElementById('countdown').textContent='';
-  document.getElementById('decodedBox').textContent='очікую сигнал...';
-  document.getElementById('decodedBox').classList.remove('flash');
-  triggerCount=0;
-  log('↺ приймач скинуто (слухання продовжується)');
-}
-
-function resetAll(){
-  stopListening();
-  stopCycle();
-  document.getElementById('decodedBox').textContent='очікую сигнал...';
-  document.getElementById('decodedBox').classList.remove('flash');
-  triggerCount=0;
-  log('✕ повне скидання');
-}
-
-function onTrigger(){
-  triggerCount++;
-  const msg=document.getElementById('morseText').value.trim() || '???';
-  const box=document.getElementById('decodedBox');
-  box.textContent=`#${triggerCount}: "${msg}"`;
-  box.classList.add('flash');
-  setTimeout(()=>box.classList.remove('flash'),800);
-  log(`🎯 ТРИГЕР #${triggerCount} → "${msg}"`, 'ok');
-  // скидаємо holdStart — але НЕ зупиняємо приймач
-  holdStart=null;
-  document.getElementById('countdown').textContent='';
+  analyser=null; micStream=null;
 }
 
 function detectLoop(){
   if(!listening||!analyser) return;
   const buf=new Float32Array(analyser.frequencyBinCount);
   analyser.getFloatFrequencyData(buf);
-  const sr=audioCtx.sampleRate;
-  const binSize=sr/FFT_SIZE;
-  const fMin=parseFloat(document.getElementById('fMin').value);
-  const fMax=parseFloat(document.getElementById('fMax').value);
-  const minBin=Math.floor(fMin/binSize);
-  const maxBin=Math.ceil(fMax/binSize);
-  let zoneMax=-Infinity;
-  for(let i=minBin;i<=maxBin&&i<buf.length;i++){
-    if(buf[i]>zoneMax) zoneMax=buf[i];
-  }
+  const binSize=audioCtx.sampleRate/FFT_SIZE;
 
-  // калібрування
   if(!isCalibrated){
     let sum=0,cnt=0;
     for(let i=5;i<buf.length;i++){ if(isFinite(buf[i])){sum+=buf[i];cnt++;} }
     const fn=cnt>0?sum/cnt:-120;
     noiseFloor=calibFrames===0?fn:noiseFloor*0.85+fn*0.15;
     calibFrames++;
-    const pct=Math.min(100,calibFrames/CALIB_FRAMES*100);
-    document.getElementById('calibBar').style.width=pct.toFixed(0)+'%';
-    document.getElementById('calibLabel').textContent=`калібрування ${pct.toFixed(0)}% | шум: ${noiseFloor.toFixed(1)} dB`;
     if(calibFrames>=CALIB_FRAMES){
       isCalibrated=true;
-      document.getElementById('calibBar').className='calib-bar done';
-      document.getElementById('calibBar').style.width='100%';
-      document.getElementById('recvDot').className='dot green';
-      document.getElementById('recvStatus').textContent='слухаю ефір';
-      log(`✅ калібровано. Шум: ${noiseFloor.toFixed(1)} dB | поріг: ${(noiseFloor+25).toFixed(1)} dB`,'ok');
+      setStatus(`калібровано | шум ${noiseFloor.toFixed(0)} dB | поріг ${(noiseFloor+25).toFixed(0)} dB`);
     }
     rafId=requestAnimationFrame(detectLoop);
     return;
   }
 
   const threshold=noiseFloor+25;
+  const fMin=2500, fMax=3050;
+  const minBin=Math.floor(fMin/binSize), maxBin=Math.ceil(fMax/binSize);
+  let zoneMax=-Infinity;
+  for(let i=minBin;i<=maxBin&&i<buf.length;i++){ if(buf[i]>zoneMax) zoneMax=buf[i]; }
   const inZone=zoneMax>threshold;
-  const hold=parseFloat(document.getElementById('holdTime').value);
-
-  // бари
-  const zoneDbPct=Math.min(100,Math.max(0,(zoneMax+120)/120*100)).toFixed(1);
-  document.getElementById('zoneDbFill').style.width=zoneDbPct+'%';
-  document.getElementById('zoneDbFill').className='freq-fill'+(inZone?' hot':'');
-  document.getElementById('zoneFill').className='zone-fill'+(inZone?' hot':'');
-  document.getElementById('zoneDbDisplay').textContent=zoneMax.toFixed(1)+' dB';
-
-  tickCount++;
-  if(tickCount%60===0){
-    log(`зона: ${zoneMax.toFixed(1)} dB | поріг: ${threshold.toFixed(1)} dB${inZone?' ✅':''}`, inZone?'ok':'');
-  }
-  document.getElementById('recvStatus').textContent=
-    `зона: ${zoneMax.toFixed(1)} dB | поріг: ${threshold.toFixed(1)} dB`;
 
   if(inZone){
-    if(!holdStart){ holdStart=performance.now(); log(`⚡ сигнал!`,'ok'); }
+    if(!holdStart) holdStart=performance.now();
     const elapsed=(performance.now()-holdStart)/1000;
-    const left=Math.max(0,hold-elapsed);
-    document.getElementById('countdown').textContent=left>0?`⏱ ${left.toFixed(1)}с`:'';
-    if(elapsed>=hold){ onTrigger(); }
+    if(elapsed>=1.2){ onTrigger(); holdStart=null; }
+    else setStatus(`⚡ сигнал... ${(1.2-elapsed).toFixed(1)}с`);
   } else {
-    if(holdStart) log(`↩ сигнал пропав`);
     holdStart=null;
-    document.getElementById('countdown').textContent='';
+    setStatus(`слухаю | зона: ${zoneMax.toFixed(0)} dB | поріг: ${threshold.toFixed(0)} dB`);
   }
 
   rafId=requestAnimationFrame(detectLoop);
 }
 
-log('v5 — польові тести. Цикл + постійне слухання + скидання','info');
-log('Генератор: текст → морзе @ 2754 Hz, циклічно','info');
-log('Приймач: слухає до тригера, потім скидається автоматично','info');
+function onTrigger(){
+  const phrase=document.getElementById('phrase').value.trim()||'???';
+  const out=document.getElementById('output');
+  out.textContent=phrase;
+  out.className='output received flash';
+  setTimeout(()=>out.classList.remove('flash'),600);
+}
+
+// ── ЦИКЛ ГЕНЕРАТОРА ──────────────────────────────────────────
+let cycleStopped=false;
+async function runCycle(){
+  cycleStopped=false;
+  while(active){
+    const phrase=document.getElementById('phrase').value.trim();
+    if(phrase) await playMorse(phrase);
+    if(!active) break;
+    const gap=parseInt(document.getElementById('interval').value)*1000;
+    setStatus(`наступний сигнал через ${document.getElementById('interval').value}с...`);
+    await sleep(gap);
+  }
+}
+
+async function playMorse(text){
+  const coded=textToMorse(text).replace(/\//g,' ');
+  const ctx=getCtx();
+  for(const ch of coded){
+    if(!active) return;
+    if(ch==='.'||ch==='-'){
+      const osc=ctx.createOscillator();
+      const g=ctx.createGain();
+      osc.type='sine'; osc.frequency.value=2754;
+      const len=(ch==='.'?1:3)*UNIT/1000;
+      const t=ctx.currentTime;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.8,t+0.004);
+      g.gain.setValueAtTime(0.8,t+len-0.004);
+      g.gain.linearRampToValueAtTime(0,t+len);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(t); osc.stop(t+len);
+      await sleep(len*1000+UNIT*0.8);
+    } else if(ch===' '){
+      await sleep(UNIT*2.5);
+    }
+    if(!active) return;
+  }
+}
+
+function setStatus(msg){ document.getElementById('status').textContent=msg; document.getElementById('status').className='status'+(msg?'  on':''); }
 </script>
