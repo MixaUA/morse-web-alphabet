@@ -593,26 +593,22 @@ function decoderLoop(){
   }
 
   const threshold=noiseFloor+25;
-  const rawTone=sigDb>threshold;
 
-  /* Дебаунс: відлуння/реверберація в кімнаті дає короткі "сплески",
-     через які тон/тиша смикаються по 1 кадру. Вимагаємо, щоб новий
-     стан тримався кілька кадрів підряд (DEBOUNCE_FRAMES), перш ніж
-     визнати його справжньою зміною. */
-  if(decoderLoop._pendingState===undefined){decoderLoop._pendingState=rawTone;decoderLoop._pendingCount=0;}
-  if(rawTone===decoderLoop._pendingState){
-    decoderLoop._pendingCount++;
-  }else{
-    decoderLoop._pendingState=rawTone;
-    decoderLoop._pendingCount=1;
-  }
-  const DEBOUNCE_FRAMES=3;
-  const isTone = (decoderLoop._pendingCount>=DEBOUNCE_FRAMES) ? rawTone : signalActive;
+  /* ВАЖЛИВО: попередня версія тримала старий стан (тон/тиша), доки новий
+     не підтвердиться кілька кадрів підряд. Якщо сигнал смикався через
+     відлуння, "підтвердження" не накопичувалось — і стан застрягав
+     на довільний час, спотворюючи всі тривалості крапок/тире.
+     Натомість згладжуємо САМУ величину сигналу (експоненціально),
+     а порівняння з порогом лишається миттєвим — це гасить короткі
+     сплески відлуння без заморожування стану. */
+  if(decoderLoop._smoothedDb===undefined) decoderLoop._smoothedDb=sigDb;
+  decoderLoop._smoothedDb = decoderLoop._smoothedDb*0.5 + sigDb*0.5;
+  const isTone = decoderLoop._smoothedDb>threshold;
 
   if(!decoderLoop._tick)decoderLoop._tick=0;
   if(++decoderLoop._tick%45===0){
     const peakFreq=Math.round(peakBin*binWidth);
-    dbg(`sig=${Math.round(sigDb)} дБ @${peakFreq}Гц | поріг=${Math.round(threshold)} дБ | ${isTone?'ТОН':'тиша'}`);
+    dbg(`sig=${Math.round(sigDb)}дБ (згл.${Math.round(decoderLoop._smoothedDb)}) @${peakFreq}Гц | поріг=${Math.round(threshold)} дБ | ${isTone?'ТОН':'тиша'}`);
   }
   document.getElementById('statusTxt').textContent=`Ефір: ${Math.round(sigDb)} дБ | Поріг: ${Math.round(threshold)} дБ`;
   const now=performance.now();
@@ -677,7 +673,7 @@ async function toggleMic(){
     analyserNode.smoothingTimeConstant=0.1;
     source.connect(analyserNode);
     fftData=null; // перевиділиться під фактичний frequencyBinCount цього аналізатора
-    decoderLoop._pendingState=undefined;decoderLoop._pendingCount=0;decoderLoop._tick=0;
+    decoderLoop._smoothedDb=undefined;decoderLoop._tick=0;
     isDecoding=true;signalActive=false;stateTime=performance.now();
     currentMorseChar="";lastDecodedText=document.getElementById('inp').value;
     calibFrames=0;isCalibrated=false;
