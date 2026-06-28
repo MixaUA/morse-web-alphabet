@@ -82,10 +82,14 @@ input[type=range] { width: 100%; accent-color: #555; }
 let audioCtx=null, analyser=null, micStream=null, rafId=null;
 let listening=false, transmitting=false;
 let noiseFloor=-120, calibFrames=0, isCalibrated=false;
-let holdStart=null, lastSignalTime=null;
+let lastSignalTime=null;
+
+// Накопичувальний буфер активності
+let signalEnergy = 0; 
+const TRIGGER_THRESHOLD = 1.0; 
 
 const FFT_SIZE=4096, CALIB_FRAMES=40;
-const UNIT=110; // мс на крапку морзе
+const UNIT=110; 
 const LATIN={A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..',0:'-----',1:'.----',2:'..---',3:'...--',4:'....-',5:'.....',6:'-....',7:'--...',8:'---..',9:'----.'};
 
 document.getElementById('interval').oninput=function(){
@@ -190,9 +194,9 @@ async function startMic(){
     const ctx=getCtx();
     analyser=ctx.createAnalyser();
     analyser.fftSize=FFT_SIZE;
-    analyser.smoothingTimeConstant=0.5; // Зменшено для швидшої реакції на зміни звуку
+    analyser.smoothingTimeConstant=0.5; 
     ctx.createMediaStreamSource(micStream).connect(analyser);
-    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; holdStart=null; lastSignalTime=null;
+    listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; lastSignalTime=null; signalEnergy=0;
     detectLoop();
   }catch(e){ setRxStatus('мікрофон недоступний: '+e.message); }
 }
@@ -226,7 +230,7 @@ function detectLoop(){
     return;
   }
 
-  // Розрахунок середнього рівня низьких/середніх частот (основа голосу та побутового шуму)
+  // Оцінка фонового шуму мовного діапазону (ПОВЕРНУТО до оригінальних значень)
   const fVoiceMax = 1500;
   const maxVoiceBin = Math.ceil(fVoiceMax / binSize);
   let voiceSum = 0, voiceCnt = 0;
@@ -235,34 +239,42 @@ function detectLoop(){
   }
   const avgVoiceLevel = voiceCnt > 0 ? voiceSum / voiceCnt : -120;
 
-  // Пошук піку в цільовій зоні сигналу (2500 - 3050 Гц)
+  // Пікова гучність у вікні коду Морзе (2500 - 3050 Гц)
   const fMin=2500, fMax=3050;
   const minBin=Math.floor(fMin/binSize), maxBin=Math.ceil(fMax/binSize);
   let zoneMax=-Infinity;
   for(let i=minBin;i<=maxBin&&i<buf.length;i++){ if(buf[i]>zoneMax) zoneMax=buf[i]; }
 
-  // ПОРІГ СИГНАЛУ: підняли відносний поріг шумів до +32 dB для відсікання фону
+  // ОРИГІНАЛЬНІ ПОРОГИ ЧУТЛИВОСТІ (Чудово відсікають голос)
   const absoluteThreshold = noiseFloor + 32; 
-  
-  // КРИТЕРІЙ ЧИСТОТИ: рівень сигналу в зоні має бути хоча б на 18 dB вищим за загальний рівень мовного спектру
-  const isPureTone = zoneMax > (avgVoiceLevel + 18);
+  const isPureTone = zoneMax > (avgVoiceLevel + 18); 
 
-  const inZone = (zoneMax > absoluteThreshold) && isPureTone;
+  const isSignalPresent = (zoneMax > absoluteThreshold) && isPureTone;
 
-  if(inZone){
+  if(isSignalPresent){
     lastSignalTime = performance.now();
-    if(!holdStart) holdStart=performance.now();
-    const elapsed=(performance.now()-holdStart)/1000;
-    if(elapsed>=1.2){ onTrigger(); holdStart=null; }
-    else setRxStatus(`⚡ фіксація чистого тону... ${(1.2-elapsed).toFixed(1)}с`);
-  } else {
-    holdStart=null;
-    setRxStatus(`ефір чистий | зона: ${zoneMax.toFixed(0)} dB | поріг: ${absoluteThreshold.toFixed(0)} dB`);
-    
-    if(lastSignalTime && (performance.now() - lastSignalTime) > 4000) {
-      resetOutput();
-      lastSignalTime = null;
+    // Накопичуємо енергію, поки звучить тон
+    signalEnergy += 0.07; 
+    if(signalEnergy > TRIGGER_THRESHOLD) {
+      onTrigger();
+      signalEnergy = 0; 
     }
+  } else {
+    // Енергія плавно стікає в паузах Морзе, замість миттєвого скидання
+    signalEnergy -= 0.015; 
+    if(signalEnergy < 0) signalEnergy = 0;
+  }
+
+  // Рядок статусу з відсотками прогресу розпізнання
+  if (signalEnergy > 0) {
+    setRxStatus(`📡 Прийом Морзе... Накопичення: ${Math.round((signalEnergy/TRIGGER_THRESHOLD)*100)}%`);
+  } else {
+    setRxStatus(`ефір чистий | зона: ${zoneMax.toFixed(0)} dB | поріг: ${absoluteThreshold.toFixed(0)} dB`);
+  }
+
+  if(lastSignalTime && (performance.now() - lastSignalTime) > 4000) {
+    resetOutput();
+    lastSignalTime = null;
   }
 
   rafId=requestAnimationFrame(detectLoop);
