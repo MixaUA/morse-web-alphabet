@@ -132,7 +132,6 @@ async function runTxCycle(){
     }
     if(!transmitting) break;
     
-    // Очищення поля виводу відразу при переході в паузу
     resetOutput();
     
     const intervalSec = parseInt(document.getElementById('interval').value);
@@ -191,7 +190,7 @@ async function startMic(){
     const ctx=getCtx();
     analyser=ctx.createAnalyser();
     analyser.fftSize=FFT_SIZE;
-    analyser.smoothingTimeConstant=0.75;
+    analyser.smoothingTimeConstant=0.5; // Зменшено для швидшої реакції на зміни звуку
     ctx.createMediaStreamSource(micStream).connect(analyser);
     listening=true; calibFrames=0; isCalibrated=false; noiseFloor=-120; holdStart=null; lastSignalTime=null;
     detectLoop();
@@ -221,30 +220,45 @@ function detectLoop(){
     calibFrames++;
     if(calibFrames>=CALIB_FRAMES){
       isCalibrated=true;
-      setRxStatus(`калібровано | шум ${noiseFloor.toFixed(0)} dB | поріг ${(noiseFloor+25).toFixed(0)} dB`);
+      setRxStatus(`калібровано | шум ${noiseFloor.toFixed(0)} dB`);
     }
     rafId=requestAnimationFrame(detectLoop);
     return;
   }
 
-  const threshold=noiseFloor+25;
+  // Розрахунок середнього рівня низьких/середніх частот (основа голосу та побутового шуму)
+  const fVoiceMax = 1500;
+  const maxVoiceBin = Math.ceil(fVoiceMax / binSize);
+  let voiceSum = 0, voiceCnt = 0;
+  for(let i=10; i<=maxVoiceBin && i<buf.length; i++){
+    if(isFinite(buf[i])) { voiceSum += buf[i]; voiceCnt++; }
+  }
+  const avgVoiceLevel = voiceCnt > 0 ? voiceSum / voiceCnt : -120;
+
+  // Пошук піку в цільовій зоні сигналу (2500 - 3050 Гц)
   const fMin=2500, fMax=3050;
   const minBin=Math.floor(fMin/binSize), maxBin=Math.ceil(fMax/binSize);
   let zoneMax=-Infinity;
   for(let i=minBin;i<=maxBin&&i<buf.length;i++){ if(buf[i]>zoneMax) zoneMax=buf[i]; }
-  const inZone=zoneMax>threshold;
+
+  // ПОРІГ СИГНАЛУ: підняли відносний поріг шумів до +32 dB для відсікання фону
+  const absoluteThreshold = noiseFloor + 32; 
+  
+  // КРИТЕРІЙ ЧИСТОТИ: рівень сигналу в зоні має бути хоча б на 18 dB вищим за загальний рівень мовного спектру
+  const isPureTone = zoneMax > (avgVoiceLevel + 18);
+
+  const inZone = (zoneMax > absoluteThreshold) && isPureTone;
 
   if(inZone){
-    lastSignalTime = performance.now(); // Фіксуємо час активності
+    lastSignalTime = performance.now();
     if(!holdStart) holdStart=performance.now();
     const elapsed=(performance.now()-holdStart)/1000;
     if(elapsed>=1.2){ onTrigger(); holdStart=null; }
-    else setRxStatus(`⚡ сигнал... ${(1.2-elapsed).toFixed(1)}с`);
+    else setRxStatus(`⚡ фіксація чистого тону... ${(1.2-elapsed).toFixed(1)}с`);
   } else {
     holdStart=null;
-    setRxStatus(`слухаю | зона: ${zoneMax.toFixed(0)} dB | поріг: ${threshold.toFixed(0)} dB`);
+    setRxStatus(`ефір чистий | зона: ${zoneMax.toFixed(0)} dB | поріг: ${absoluteThreshold.toFixed(0)} dB`);
     
-    // Автоматичне динамічне скидання екрана, якщо сигналу немає більше 4 секунд
     if(lastSignalTime && (performance.now() - lastSignalTime) > 4000) {
       resetOutput();
       lastSignalTime = null;
