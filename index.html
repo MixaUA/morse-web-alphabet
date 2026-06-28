@@ -65,8 +65,6 @@ body{
 .divider .dd{width:5px;height:5px;border-radius:50%;background:#1a1a1a}
 
 /* ===== СТРІЧКА МОРЗЕ (верхня) ===== */
-/* direction:rtl — нові символи з'являються справа, старі йдуть ліворуч.
-   Весь LTR-текст загортаємо в .morse-txt щоб не перевертати крапки/тире */
 .tape-outer{
   width:100%;
   height:54px;
@@ -76,32 +74,28 @@ body{
   overflow:hidden;
   position:relative;
   margin-bottom:16px;
-  /* перфорація */
   background-image:
     radial-gradient(circle at 8px 12px,#f5f0e8 4px,transparent 4px),
     radial-gradient(circle at 8px 38px,#f5f0e8 4px,transparent 4px),
     radial-gradient(circle at calc(100% - 8px) 12px,#f5f0e8 4px,transparent 4px),
     radial-gradient(circle at calc(100% - 8px) 38px,#f5f0e8 4px,transparent 4px);
 }
-/* лівий fade — тут символи "зникають" */
 .tape-outer::before{
   content:'';position:absolute;left:0;top:0;bottom:0;width:36px;
   background:linear-gradient(to right,#fff9ee 60%,transparent);
   z-index:5;pointer-events:none;
 }
-/* правий fade */
 .tape-outer::after{
   content:'';position:absolute;right:0;top:0;bottom:0;width:20px;
   background:linear-gradient(to left,#fff9ee 60%,transparent);
   z-index:5;pointer-events:none;
 }
 
-/* Сам рядок — direction rtl, щоб «хвіст» завжди праворуч */
 .morse-tape{
   width:100%;height:100%;
   display:flex;align-items:center;
   padding:0 24px;
-  overflow:hidden;          /* НЕ auto — не треба скролбар */
+  overflow:hidden;
   direction:rtl;
   white-space:nowrap;
   font-family:'Special Elite',serif;
@@ -109,13 +103,11 @@ body{
   letter-spacing:4px;
   color:#1a1a1a;
 }
-/* Внутрішній span — повертаємо LTR, щоб крапки/тире не перевертались */
 .morse-txt{direction:ltr;display:inline-block;}
 
-/* Мінімальний placeholder коли порожньо */
 .morse-tape.empty{color:#aaa;font-size:18px;justify-content:center;}
 
-/* ===== VIS (крапки-тире кольором) ===== */
+/* ===== VIS ===== */
 .vis-wrap{display:flex;gap:3px;align-items:center;height:24px;overflow-x:auto;overflow-y:hidden;margin-bottom:16px;flex-wrap:nowrap;scrollbar-width:none;}
 .vis-wrap::-webkit-scrollbar{display:none;}
 .sym{display:inline-block;background:#1a1a1a;border-radius:2px;height:16px;flex-shrink:0}
@@ -137,7 +129,6 @@ body{
   outline:none;
   box-shadow:2px 2px 0 #1a1a1a;
   margin-bottom:16px;
-  /* Текст біжить вправо, курсор слідкує */
   direction:ltr;
   text-align:left;
 }
@@ -218,6 +209,9 @@ button.accent:hover{background:#333}
 }
 .deco-dot{width:6px;height:6px;border-radius:50%;background:#1a1a1a;flex-shrink:0}
 .deco-dash{width:18px;height:4px;background:#1a1a1a;border-radius:2px;flex-shrink:0}
+
+/* ===== ІНФО ПРО ЧАСТОТУ НЕСУЧОЇ ===== */
+.freq-note{font-family:'Caveat',cursive;font-size:14px;color:#777;margin-top:6px;text-align:center}
 </style>
 </head>
 <body>
@@ -246,29 +240,26 @@ button.accent:hover{background:#333}
   <div class="card">
     <span class="lbl">Код Морзе:</span>
 
-    <!-- Стрічка: direction rtl, нові символи справа, старі ховаються зліва -->
     <div class="tape-outer">
       <div class="morse-tape empty" id="morseOut"><span class="morse-txt">— порожньо —</span></div>
     </div>
 
-    <!-- Крапки/тире поточного слова -->
     <div class="vis-wrap" id="vis"></div>
 
-    <!-- Широке текстове поле -->
     <input class="inp-wide" type="text" id="inp"
       placeholder="Введіть текст латиницею..."
       oninput="onInput()"
       autocomplete="off" autocorrect="off" spellcheck="false">
 
-    <!-- Кнопки в ряд -->
     <div class="btn-row">
       <button id="micBtn" onclick="toggleMic()">&#9679; Слухати</button>
-      <button class="accent" onclick="playMorse()">&#9654; Відтворити</button>
+      <button class="accent" onclick="playMorse()">&#9654; Відтворити (тест-передавач)</button>
       <button id="stopBtn" onclick="stopPlay()" style="display:none">&#9632; Стоп</button>
       <button onclick="clearAll()">&#10005; Очистити</button>
     </div>
 
     <p class="heard" id="heard"></p>
+    <p class="freq-note">Несуча частота передавача й приймача синхронізована: <b id="freqLabel"></b> Гц (раніше калібрувалась під активний бузер)</p>
   </div>
 
   <!-- ТАБЛИЦЯ -->
@@ -308,6 +299,18 @@ button.accent:hover{background:#333}
 </div>
 
 <script>
+/* =========================================================
+   ЄДИНА КОНСТАНТА НЕСУЧОЇ ЧАСТОТИ
+   Раніше: декодер шукав 2754 Гц (під активний бузер),
+   а тест-передавач (playMorse) грав на 700 Гц (залишок
+   гри з пасивним бузером) — звідси й розсинхрон.
+   Тепер обидва беруть значення з одного місця.
+   ========================================================= */
+const CARRIER_FREQ = 2754;
+const UNIT = 100; // базова тривалість крапки, мс — теж спільна для передавача і приймача
+
+document.getElementById('freqLabel').textContent = CARRIER_FREQ;
+
 const LATIN={
   'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',
   'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',
@@ -318,16 +321,9 @@ const LATIN={
 };
 const MORSE_TO_LATIN=Object.fromEntries(Object.entries(LATIN).map(([k,v])=>[v,k]));
 
-/* =========================================================
-   СТРІЧКА — direction:rtl на .morse-tape
-   Всі символи загортаються в <span class="morse-txt">
-   який має direction:ltr — так крапки/тире не перевертаються,
-   але новий текст все одно «з'являється» з правого краю.
-   ========================================================= */
 function encode(text){
   let t=(text!==undefined?text:document.getElementById('inp').value).toUpperCase();
-  
-  // Якщо текст задовгий, залишаємо лише останні 200 символів
+
   if (t.length > 200) {
     t = t.slice(-200);
     document.getElementById('inp').value = t.toLowerCase();
@@ -354,7 +350,6 @@ function encode(text){
 let hlTimer=null;
 function clearHi(){document.querySelectorAll('.cell.hi').forEach(c=>c.classList.remove('hi'));}
 
-/* При ручному введенні — підсвічуємо літери слова, гасимо через 300мс */
 function highlightTable(t){
   clearTimeout(hlTimer);
   clearHi();
@@ -365,7 +360,6 @@ function highlightTable(t){
   hlTimer=setTimeout(clearHi,300);
 }
 
-/* При кліку на таблицю — блиск одного символу 200мс */
 function flashHighlight(ch){
   clearTimeout(hlTimer);
   clearHi();
@@ -399,8 +393,7 @@ function renderVis(coded){
     else if(ch==='/'){const g=document.createElement('span');g.className='sym sp';g.style.width='22px';vis.appendChild(g);continue;}
     vis.appendChild(s);
   }
-  
-  // ОПТИМІЗАЦІЯ: видаляємо старі геометричні блоки зліва, якщо їх забагато
+
   while(vis.children.length > 100) {
     vis.removeChild(vis.firstChild);
   }
@@ -408,15 +401,20 @@ function renderVis(coded){
   requestAnimationFrame(()=>{vis.scrollLeft=vis.scrollWidth;});
 }
 
-/* ===== PLAY ===== */
+/* ===== PLAY / ТЕСТ-ПЕРЕДАВАЧ =====
+   Грає на тій самій частоті (CARRIER_FREQ), що й шукає декодер.
+   Це і є "заміна Ардуїно + активний бузер" — звук генерується
+   просто Web Audio API цього ж браузера (або іншого пристрою,
+   якщо відкрити цю сторінку на двох телефонах поруч).
+*/
 let audioCtx=null,playing=false,stopFlag=false;
 async function playMorse(){
   if(playing){stopPlay();return;}
   const coded=document.getElementById('inp').value?encode():'';
   if(!coded)return;
   if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')await audioCtx.resume();
   const symbols=coded.replace(/\//g,' ');
-  const unit=100;
   document.getElementById('stopBtn').style.display='';
   playing=true;stopFlag=false;
   const vis=document.getElementById('vis');
@@ -428,20 +426,20 @@ async function playMorse(){
       const osc=audioCtx.createOscillator();
       const g=audioCtx.createGain();
       osc.connect(g);g.connect(audioCtx.destination);
-      osc.frequency.value=700;osc.type='sine';
+      osc.frequency.value=CARRIER_FREQ;osc.type='sine';
       const t=audioCtx.currentTime;
-      const len=(ch==='.'?1:3)*unit/1000;
+      const len=(ch==='.'?1:3)*UNIT/1000;
       g.gain.setValueAtTime(0,t);
       g.gain.linearRampToValueAtTime(0.3,t+0.005);
       g.gain.setValueAtTime(0.3,t+len-0.005);
       g.gain.linearRampToValueAtTime(0,t+len);
       osc.start(t);osc.stop(t+len);
       if(spans[idx]){spans[idx].classList.add('lit');}
-      await sleep(len*1000+unit);
+      await sleep(len*1000+UNIT);
       if(spans[idx]){spans[idx].classList.remove('lit');}
       idx++;
     }else if(ch===' '){
-      await sleep(unit*2);idx++;
+      await sleep(UNIT*2);idx++;
     }
   }
   playing=false;stopFlag=false;
@@ -450,7 +448,7 @@ async function playMorse(){
 function stopPlay(){stopFlag=true;playing=false;document.getElementById('stopBtn').style.display='none';}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
-/* ===== ТАБЛИЦЯ (клік додає літеру, підсвічує і гасне) ===== */
+/* ===== ТАБЛИЦЯ ===== */
 const tbl=document.getElementById('tbl');
 for(const[ch,mc]of Object.entries(LATIN)){
   const d=document.createElement('div');
@@ -495,7 +493,6 @@ function dbg(msg){
   if(logLines.length>200)logLines.shift();
   const el=document.getElementById('debugLog');
   el.textContent=logLines.join('\n');
-  /* scroll тільки всередині div, не торкаємось window */
   requestAnimationFrame(()=>{ el.scrollTop=el.scrollHeight; });
 }
 function clearLog(){logLines=[];document.getElementById('debugLog').textContent='';}
@@ -507,19 +504,24 @@ function copyLog(){
   });
 }
 
-/* ===== DSP-ДЕКОДЕР (оригінал, без змін) ===== */
+/* ===== DSP-ДЕКОДЕР ===== */
 let micStream=null,analyserNode=null,rafId=null,isDecoding=false;
-const audioUnit=100;
-const TARGET_FREQ=2754;
+const audioUnit=UNIT;
+const TARGET_FREQ=CARRIER_FREQ; // тепер та сама константа, що й у передавача
 const FFT_SIZE=2048;
 let signalActive=false,stateTime=performance.now(),currentMorseChar="",lastDecodedText="";
 let noiseFloor=-105,calibFrames=0,isCalibrated=false;
 
+/* Буфер FFT виділяємо один раз заздалегідь, а не на кожному кадрі —
+   менше сміття для збирача пам'яті при довгому прослуховуванні ефіру. */
+let fftData=null;
+
 function decoderLoop(){
   if(!isDecoding)return;
   rafId=requestAnimationFrame(decoderLoop);
-  const data=new Float32Array(analyserNode.frequencyBinCount);
-  analyserNode.getFloatFrequencyData(data);
+  if(!fftData) fftData = new Float32Array(analyserNode.frequencyBinCount);
+  analyserNode.getFloatFrequencyData(fftData);
+  const data = fftData;
   const sr=audioCtx.sampleRate;
   const targetBin=Math.round(TARGET_FREQ*FFT_SIZE/sr);
   let sigDb=data[targetBin];
@@ -550,6 +552,8 @@ function decoderLoop(){
       if(delta>=audioUnit*0.4&&delta<audioUnit*1.8){currentMorseChar+=".";dbg(`  . (${Math.round(delta)}ms) -> "${currentMorseChar}"`);}
       else if(delta>=audioUnit*1.8&&delta<audioUnit*5.0){currentMorseChar+="-";dbg(`  - (${Math.round(delta)}ms) -> "${currentMorseChar}"`);}
       else{dbg(`  ігнор (${Math.round(delta)}ms)`);}
+      /* Захист від нескінченного накопичення, якщо щось пішло не так */
+      if(currentMorseChar.length>10){dbg(`  ⚠ занадто довгий знак, скидаю`);currentMorseChar="";}
       document.getElementById('heard').textContent="Знак: "+currentMorseChar;
     }else{dbg(`▶ Звук (тиша ${Math.round(delta)}ms)`);}
     signalActive=isTone;stateTime=now;
@@ -560,7 +564,6 @@ function decoderLoop(){
       if(letter!=="?"){
         lastDecodedText+=letter.toLowerCase();
         document.getElementById('inp').value=lastDecodedText;
-        /* Скролимо поле вправо щоб останній символ був видний */
         const inp=document.getElementById('inp');
         inp.scrollLeft=inp.scrollWidth;
         encode();
@@ -577,7 +580,6 @@ function decoderLoop(){
         encode();
       }
     }
-    /* 3-секундна пауза між реченнями: додаємо ' / ' */
     if(!signalActive&&delta>=audioUnit*30){
       const t=document.getElementById('inp').value;
       if(t.length>0&&!t.endsWith(' / ')&&!t.endsWith('/ ')){
@@ -603,11 +605,11 @@ async function toggleMic(){
     analyserNode.fftSize=FFT_SIZE;
     analyserNode.smoothingTimeConstant=0.1;
     source.connect(analyserNode);
+    fftData=null; // перевиділиться під фактичний frequencyBinCount цього аналізатора
     isDecoding=true;signalActive=false;stateTime=performance.now();
     currentMorseChar="";lastDecodedText=document.getElementById('inp').value;
     calibFrames=0;isCalibrated=false;
     document.getElementById('dotEl').className='dot-ind active';
-    /* innerHTML щоб уникнути артефактів з entities */
     document.getElementById('micBtn').innerHTML='&#9632; Зупинити';
     dbg(`🎤 Мікрофон ${audioCtx.sampleRate}Гц. Фільтр ${TARGET_FREQ}Гц.`);
     decoderLoop();
@@ -623,7 +625,7 @@ function stopMic(){
   if(rafId)cancelAnimationFrame(rafId);
   if(micStream)micStream.getTracks().forEach(t=>t.stop());
   if(analyserNode)analyserNode.disconnect();
-  micStream=null;analyserNode=null;rafId=null;
+  micStream=null;analyserNode=null;rafId=null;fftData=null;
   document.getElementById('dotEl').className='dot-ind';
   document.getElementById('statusTxt').textContent='Мікрофон вимкнено';
   document.getElementById('micBtn').innerHTML='&#9679; Слухати';
